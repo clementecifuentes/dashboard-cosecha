@@ -1,0 +1,10 @@
+# GeoJSON crudos exportados del Operations Center (80-95 MB c/u).
+# El dashboard solo necesita data/campos.json, generado con limpiar_geojson.py
+data/*.geojson
+
+# Configuracion local de Claude Code (contiene credenciales de API)
+.claude/
+
+# Sistema
+Thumbs.db
+desktop.ini

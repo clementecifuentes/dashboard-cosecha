@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280, initial-scale=1.5">
+<title>John Deere Ceres Tolvas — Dashboard ADR Comparativo</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#0d1117; --surface:#161b22; --surface2:#21262d; --border:#30363d;
+  --text:#e6edf3; --muted:#8b949e; --accent:#f0b429;
+  --s2026:#58a6ff; --s2025:#f0b429; --s2025F:#a78bfa;
+  --girasol:#f0b429; --maiz:#e85d04; --trigo:#9ef0f0;
+  --soja:#4ade80; --cebada:#c084fc; --otros:#64748b;
+  --green:#3fb950; --red:#f85149;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden;}
+
+/* LOADING */
+#loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px;}
+#loading-screen.hidden{display:none;}
+.loading-logo{font-weight:800;font-size:22px;letter-spacing:-.5px;}
+.loading-bar-bg{width:240px;height:3px;background:var(--border);border-radius:2px;}
+.loading-bar-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .4s;}
+.loading-text{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+
+/* HEADER */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:200;}
+.header-logo{font-weight:800;font-size:17px;letter-spacing:-.5px;}
+.logo-jd{color:#367c2b;} .logo-ceres{color:var(--accent);} .logo-rest{color:var(--text);}
+.header-divider{width:1px;height:24px;background:var(--border);}
+.header-subtitle{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.5px;}
+.header-tabs{margin-left:auto;display:flex;gap:4px;}
+.tab-btn{padding:6px 14px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;}
+.tab-btn:hover{background:var(--surface2);color:var(--text);}
+.tab-btn.active{background:var(--accent);color:#000;border-color:var(--accent);}
+
+/* FILTER BAR */
+.filter-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 24px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.filter-label{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;}
+.filter-chip{padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Syne',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;}
+.filter-chip .dot{width:7px;height:7px;border-radius:50%;}
+.filter-chip.active{border-color:var(--accent);background:rgba(240,180,41,.12);}
+.filter-chip:hover{border-color:var(--accent);}
+.filter-sep{width:1px;height:18px;background:var(--border);flex-shrink:0;}
+.season-toggle{display:flex;gap:4px;}
+.season-btn{padding:3px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;}
+.season-btn .sdot{width:7px;height:7px;border-radius:50%;}
+.season-btn.active-2026{border-color:var(--s2026);background:rgba(88,166,255,.12);color:var(--s2026);}
+.season-btn.active-2025F{border-color:var(--s2025F);background:rgba(167,139,250,.12);color:var(--s2025F);}
+.season-btn.active-2025{border-color:var(--s2025);background:rgba(240,180,41,.12);color:var(--s2025);}
+.season-btn:not(.active-2026):not(.active-2025F):not(.active-2025){opacity:.45;}
+.filter-info{font-size:10px;color:var(--text);font-weight:700;margin-left:4px;white-space:nowrap;}
+
+/* PARTIDO FILTER ROW */
+.partido-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:5px 24px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+
+/* PAGES */
+.page{display:none;} .page.active{display:block;}
+
+/* PAGE 1 */
+.page1-grid{display:grid;grid-template-columns:1fr;grid-template-rows:auto 1fr;height:calc(100vh - 52px - 43px - 38px);}
+.kpi-row{grid-column:1/-1;}
+
+/* KPI */
+.kpi-row{grid-column:1/-1;background:var(--border);display:flex;flex-direction:column;gap:1px;}
+.kpi-main{display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr;gap:1px;}
+.kpi-pair{display:grid;grid-template-columns:1fr 1fr;gap:1px;}
+.kpi-sub{display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr;gap:1px;}
+.kpi-sep-v{background:var(--border);}
+.kpi-card{background:var(--surface);padding:12px 16px;position:relative;overflow:hidden;}
+.kpi-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;opacity:0;transition:opacity .2s;}
+.kpi-card:hover::after{opacity:1;}
+.kpi-card.s2026::after{background:var(--s2026);}
+.kpi-card.s2025::after{background:var(--s2025);}
+.kpi-season-tag{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;margin-bottom:4px;display:inline-block;}
+.kpi-season-tag.t2026{background:rgba(88,166,255,.15);color:var(--s2026);}
+.kpi-season-tag.t2025F{background:rgba(167,139,250,.15);color:var(--s2025F);}
+.kpi-season-tag.t2025{background:rgba(240,180,41,.15);color:var(--s2025);}
+.kpi-card.s2025F::after{background:var(--s2025F);}
+.kpi-label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:3px;}
+.kpi-value{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--text);line-height:1;}
+.kpi-unit{font-size:10px;color:var(--muted);margin-left:2px;}
+.kpi-delta{display:inline-flex;align-items:center;gap:3px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;margin-top:3px;}
+.kpi-delta.up{background:rgba(63,185,80,.15);color:var(--green);}
+.kpi-delta.dn{background:rgba(248,81,73,.15);color:var(--red);}
+.kpi-delta.neu{background:rgba(139,148,158,.1);color:var(--muted);}
+
+/* MAP */
+.map-container{position:relative;overflow:hidden;border-right:1px solid var(--border);}
+#map{width:100%;height:100%;}
+.map-legend{position:absolute;bottom:16px;left:16px;z-index:1000;background:rgba(13,17,23,.93);border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
+.legend-section-title{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px;}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:3px;font-size:11px;color:var(--muted);}
+.legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.legend-sep{height:1px;background:var(--border);margin:7px 0;}
+
+/* RIGHT PANEL */
+.right-panel{background:var(--surface);display:flex;flex-direction:column;}
+.panel-section{padding:12px 14px;border-bottom:1px solid var(--border);}
+.panel-title{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;}
+.donut-wrap{position:relative;height:175px;display:flex;align-items:center;justify-content:center;}
+#donutChart{max-width:175px;}
+.donut-center{position:absolute;text-align:center;pointer-events:none;}
+.donut-center-val{font-family:'Space Mono',monospace;font-size:17px;font-weight:700;}
+.donut-center-lbl{font-size:9px;color:var(--muted);letter-spacing:.8px;}
+
+/* Crop compare */
+.crop-compare-item{padding:6px 0;border-bottom:1px solid rgba(48,54,61,.4);}
+.crop-compare-item:last-child{border-bottom:none;}
+.cci-header{display:flex;align-items:center;gap:7px;margin-bottom:4px;}
+.cci-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.cci-name{font-size:12px;font-weight:700;flex:1;}
+.cci-bars{display:flex;flex-direction:column;gap:3px;}
+.cci-bar-row{display:flex;align-items:center;gap:6px;}
+.cci-bar-lbl{font-family:'Space Mono',monospace;font-size:9px;width:120px;flex-shrink:0;}
+.cci-bar-lbl.t2026{color:var(--s2026);}
+.cci-bar-lbl.t2025{color:var(--s2025);}
+.cci-bar-bg{flex:1;height:4px;background:var(--border);border-radius:2px;}
+.cci-bar-fill{height:100%;border-radius:2px;transition:width .5s;}
+
+/* Partido compare */
+.partido-compare{overflow-y:auto;flex:1;}
+.partido-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(48,54,61,.3);cursor:pointer;}
+.partido-row:hover{opacity:.8;}
+.partido-name{font-size:11px;font-weight:700;width:95px;flex-shrink:0;text-transform:capitalize;}
+.partido-bars{flex:1;display:flex;flex-direction:column;gap:2px;}
+.pb-row{display:flex;align-items:center;gap:4px;}
+.pb-bg{flex:1;height:3px;background:var(--border);border-radius:2px;}
+.pb-fill{height:100%;border-radius:2px;}
+.pb-val{font-family:'Space Mono',monospace;font-size:9px;width:52px;text-align:right;flex-shrink:0;}
+.pb-val.t2026{color:var(--s2026);}
+.pb-val.t2025{color:var(--s2025);}
+
+/* PAGE 2 */
+.page2-wrap{height:calc(100vh - 52px - 43px - 38px);overflow:auto;}
+.p2-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);}
+.p2-full{grid-column:1/-1;}
+.chart-panel{background:var(--surface);padding:14px 18px;}
+.chart-title{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.chart-legend{display:flex;gap:10px;margin-left:auto;}
+.cl-item{display:flex;align-items:center;gap:4px;font-size:10px;}
+.cl-dot{width:8px;height:8px;border-radius:50%;}
+.chart-wrap{height:210px;position:relative;}
+.chart-wrap-lg{height:250px;position:relative;}
+
+/* PAGE 3 TABLE */
+.table-wrap{overflow:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{background:var(--surface2);color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;padding:8px 12px;text-align:left;position:sticky;top:0;border-bottom:1px solid var(--border);}
+tbody tr{border-bottom:1px solid rgba(48,54,61,.4);transition:background .1s;}
+tbody tr:hover{background:var(--surface2);}
+tbody td{padding:7px 12px;font-family:'Space Mono',monospace;font-size:11px;}
+tbody td:first-child{font-family:'Syne',sans-serif;font-size:11px;font-weight:600;}
+.td-right{text-align:right;}
+.td-rend{color:var(--accent);font-weight:700;}
+.td-crop{display:inline-flex;align-items:center;gap:5px;}
+.td-dot{width:7px;height:7px;border-radius:50%;}
+.td-season{font-family:'Space Mono',monospace;font-size:9px;padding:2px 6px;border-radius:8px;font-weight:700;}
+.td-season.t2026{background:rgba(88,166,255,.15);color:var(--s2026);}
+.td-season.t2025{background:rgba(240,180,41,.15);color:var(--s2025);}
+.td-partido{font-size:10px;color:var(--muted);text-transform:capitalize;}
+
+/* PAGE 4 MACHINES */
+.page4-wrap{height:calc(100vh - 52px - 43px - 38px);overflow:auto;}
+.maq-kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);}
+.maq-kpi-card{background:var(--surface);padding:12px 16px;}
+.maq-kpi-label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px;}
+.maq-kpi-value{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--accent);line-height:1;}
+.maq-kpi-sub{font-size:10px;color:var(--muted);margin-top:3px;}
+.maq-model-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+.maq-model-pill{font-family:'Space Mono',monospace;font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(88,166,255,.12);color:var(--s2026);border:1px solid rgba(88,166,255,.25);}
+.maq-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);}
+.maq-grid-full{grid-column:1/-1;}
+.maq-panel{background:var(--surface);padding:14px 18px;}
+.maq-panel-title{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;}
+.maq-chart-wrap{height:220px;position:relative;}
+.maq-chart-wrap-lg{height:260px;position:relative;}
+.maq-table-wrap{overflow-x:auto;}
+.maq-table{width:100%;border-collapse:collapse;font-size:11px;}
+.maq-table thead th{background:var(--surface2);color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;padding:7px 10px;text-align:left;position:sticky;top:0;border-bottom:1px solid var(--border);}
+.maq-table tbody tr{border-bottom:1px solid rgba(48,54,61,.3);transition:background .1s;}
+.maq-table tbody tr:hover{background:var(--surface2);}
+.maq-table tbody td{padding:6px 10px;font-family:'Space Mono',monospace;font-size:10px;}
+.maq-tag-model{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--accent);}
+.maq-tag-vin{font-size:9px;color:var(--muted);}
+.maq-season-chips{display:flex;gap:3px;flex-wrap:wrap;}
+.maq-season-chip{font-size:8px;padding:1px 5px;border-radius:6px;font-family:'Space Mono',monospace;font-weight:700;}
+.maq-season-chip.t2026{background:rgba(88,166,255,.15);color:var(--s2026);}
+.maq-season-chip.t2025F{background:rgba(167,139,250,.15);color:var(--s2025F);}
+.maq-season-chip.t2025{background:rgba(240,180,41,.15);color:var(--s2025);}
+
+/* PAGE 5 RENTABILIDAD */
+.page5-wrap{height:calc(100vh - 52px - 43px - 38px);overflow:auto;}
+.rent-params{display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;}
+.rent-param-group{display:flex;flex-direction:column;gap:4px;}
+.rent-param-label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;}
+.rent-param-hint{font-size:9px;color:var(--muted);margin-top:2px;}
+.rent-param-input{background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'Space Mono',monospace;font-size:13px;font-weight:700;padding:5px 10px;width:110px;outline:none;transition:border-color .15s;}
+.rent-param-input:focus{border-color:var(--accent);}
+.rent-calc-result{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:8px;padding:10px 16px;display:flex;flex-direction:column;gap:2px;min-width:130px;}
+.rent-calc-result.green{background:rgba(63,185,80,.08);border-color:rgba(63,185,80,.25);}
+.rent-calc-label{font-size:9px;color:var(--accent);font-weight:700;letter-spacing:.8px;text-transform:uppercase;}
+.rent-calc-label.green{color:var(--green);}
+.rent-calc-value{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--accent);}
+.rent-calc-value.green{color:var(--green);}
+.rent-kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);}
+.rent-kpi-card{background:var(--surface);padding:12px 16px;}
+.rent-kpi-label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px;}
+.rent-kpi-value{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;line-height:1;}
+.rent-kpi-sub{font-size:10px;color:var(--muted);margin-top:3px;}
+.rent-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);}
+.rent-grid-full{grid-column:1/-1;}
+.rent-panel{background:var(--surface);padding:14px 18px;}
+.rent-panel-title{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;}
+.rent-chart-wrap{height:260px;position:relative;}
+.rent-table-wrap{overflow-x:auto;}
+.rent-table{width:100%;border-collapse:collapse;font-size:11px;}
+.rent-table thead th{background:var(--surface2);color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;padding:7px 10px;text-align:left;position:sticky;top:0;border-bottom:1px solid var(--border);}
+.rent-table tbody tr{border-bottom:1px solid rgba(48,54,61,.3);transition:background .1s;}
+.rent-table tbody tr:hover{background:var(--surface2);}
+.rent-table tbody td{padding:6px 10px;font-family:'Space Mono',monospace;font-size:10px;}
+.rent-view-btn{padding:3px 10px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;font-weight:700;cursor:pointer;transition:all .15s;}
+.rent-view-btn.active{background:var(--accent);color:#000;border-color:var(--accent);}
+.rent-org-row{cursor:pointer;border-bottom:1px solid rgba(48,54,61,.5);}
+.rent-org-row:hover{background:var(--surface2);}
+.rent-org-row td{padding:8px 10px;font-family:'Space Mono',monospace;font-size:11px;}
+.rent-org-chevron{display:inline-block;transition:transform .2s;margin-right:6px;color:var(--muted);font-size:10px;}
+.rent-org-row.open .rent-org-chevron{transform:rotate(90deg);}
+.rent-lote-row{display:none;background:rgba(13,17,23,.5);}
+.rent-lote-row.visible{display:table-row;}
+.rent-lote-row td{padding:5px 10px 5px 28px;font-family:'Space Mono',monospace;font-size:10px;border-bottom:1px solid rgba(48,54,61,.2);}
+.rent-badge-over{background:rgba(63,185,80,.15);color:var(--green);border-radius:4px;padding:2px 7px;font-size:9px;font-weight:700;white-space:nowrap;}
+.rent-badge-under{background:rgba(248,81,73,.15);color:var(--red);border-radius:4px;padding:2px 7px;font-size:9px;font-weight:700;white-space:nowrap;}
+.rent-crop-chip{padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;}
+.rent-crop-chip:hover{border-color:var(--accent);}
+.rent-crop-chip.active{border-color:var(--accent);background:rgba(240,180,41,.10);color:var(--text);}
+
+/* DETAIL SEARCH */
+.detail-search-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:7px 16px;display:flex;align-items:center;gap:8px;}
+.detail-search-input{flex:1;max-width:320px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;padding:5px 10px;outline:none;transition:border-color .15s;}
+.detail-search-input:focus{border-color:var(--accent);}
+.detail-search-input::placeholder{color:var(--muted);}
+.detail-search-clear{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;line-height:1;transition:color .15s;}
+.detail-search-clear:hover{color:var(--text);}
+.detail-search-count{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-left:4px;}
+
+/* TOOLTIP */
+.map-tooltip{position:fixed;background:rgba(13,17,23,.96);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;pointer-events:none;z-index:9999;min-width:195px;display:none;}
+.tt-title{font-weight:700;font-size:13px;margin-bottom:6px;}
+.tt-row{display:flex;justify-content:space-between;gap:16px;margin-bottom:2px;}
+.tt-key{color:var(--muted);} .tt-val{font-family:'Space Mono',monospace;font-weight:700;}
+
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.leaflet-container{background:#1a2332!important;}
+.leaflet-control-zoom a{background:var(--surface2)!important;color:var(--text)!important;border-color:var(--border)!important;}
+</style>
+</head>
+<body>
+
+<!-- LOADING SCREEN -->
+<div id="loading-screen">
+  <div class="loading-logo">
+    <span style="color:#367c2b">John Deere</span> <span style="color:var(--accent)">Ceres</span> <span>Tolvas</span>
+  </div>
+  <div class="loading-bar-bg"><div class="loading-bar-fill" id="loading-bar"></div></div>
+  <div class="loading-text" id="loading-text">Cargando datos...</div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-logo">
+    <span class="logo-jd">John Deere</span> <span class="logo-ceres">Ceres</span> <span class="logo-rest">Tolvas</span>
+  </div>
+  <div class="header-divider"></div>
+  <div class="header-subtitle">DASHBOARD COMPARATIVO · ADR · BUENOS AIRES</div>
+  <div class="header-tabs">
+    <button class="tab-btn active" onclick="showPage(1)">📍 Mapa & Resumen</button>
+    <button class="tab-btn" onclick="showPage(2)">📊 Comparación</button>
+    <button class="tab-btn" onclick="showPage(3)">🗂️ Detalle</button>
+    <button class="tab-btn" onclick="showPage(4)">🚜 Máquinas</button>
+    <button class="tab-btn" onclick="showPage(5)">💰 Rentabilidad</button>
+    <div class="header-divider"></div>
+    <button class="tab-btn" onclick="exportHTML()" style="background:#238636;color:#fff;border-color:#238636;">⬇️ Exportar HTML</button>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <span class="filter-label">Cultivo</span>
+  <div class="filter-chip active" data-filter="all" onclick="setFilter('all')">Todos</div>
+  <div class="filter-chip" data-filter="Girasol" onclick="setFilter('Girasol')"><span class="dot" style="background:var(--girasol)"></span>Girasol</div>
+  <div class="filter-chip" data-filter="Maiz" onclick="setFilter('Maiz')"><span class="dot" style="background:var(--maiz)"></span>Maíz</div>
+  <div class="filter-chip" data-filter="Trigo" onclick="setFilter('Trigo')"><span class="dot" style="background:var(--trigo)"></span>Trigo</div>
+  <div class="filter-chip" data-filter="Soja" onclick="setFilter('Soja')"><span class="dot" style="background:var(--soja)"></span>Soja</div>
+  <div class="filter-chip" data-filter="Cebada" onclick="setFilter('Cebada')"><span class="dot" style="background:var(--cebada)"></span>Cebada</div>
+  <div class="filter-sep"></div>
+  <div class="season-toggle">
+    <button class="season-btn active-2026" id="sbtn-2026" onclick="toggleSeason('2026')"><span class="sdot" style="background:var(--s2026)"></span>2026</button>
+    <button class="season-btn active-2025" id="sbtn-2025" onclick="toggleSeason('2025')"><span class="sdot" style="background:var(--s2025)"></span>2025</button>
+    <button class="season-btn active-2025F" id="sbtn-2025F" onclick="toggleSeason('2025F')"><span class="sdot" style="background:var(--s2025F)"></span>2025 Final</button>
+  </div>
+  <span class="filter-info" id="filter-count"></span>
+</div>
+
+<!-- PARTIDO FILTER BAR -->
+<div class="partido-bar" id="partido-bar">
+  <span class="filter-label">Partido</span>
+</div>
+
+<!-- PAGE 1 -->
+<div class="page active" id="page1">
+  <div class="page1-grid">
+    <div class="kpi-row">
+      <div class="kpi-main">
+        <div class="kpi-pair">
+          <div class="kpi-card s2026"><div class="kpi-season-tag t2026" id="tag-2026-area">2026</div><div class="kpi-label">Superficie</div><div class="kpi-value" id="kpi-area-2026">—<span class="kpi-unit">ha</span></div><div id="kpi-delta-area" class="kpi-delta neu">—</div></div>
+          <div class="kpi-card s2025"><div class="kpi-season-tag t2025" id="tag-2025-area">2025 Proy.</div><div class="kpi-label">Superficie</div><div class="kpi-value" id="kpi-area-2025">—<span class="kpi-unit">ha</span></div></div>
+        </div>
+        <div class="kpi-sep-v"></div>
+        <div class="kpi-pair">
+          <div class="kpi-card s2026"><div class="kpi-season-tag t2026" id="tag-2026-yield">2026</div><div class="kpi-label">Producción</div><div class="kpi-value" id="kpi-yield-2026">—<span class="kpi-unit">t</span></div><div id="kpi-delta-yield" class="kpi-delta neu">—</div></div>
+          <div class="kpi-card s2025"><div class="kpi-season-tag t2025" id="tag-2025-yield">2025 Proy.</div><div class="kpi-label">Producción</div><div class="kpi-value" id="kpi-yield-2025">—<span class="kpi-unit">t</span></div></div>
+        </div>
+        <div class="kpi-sep-v"></div>
+        <div class="kpi-pair">
+          <div class="kpi-card s2026"><div class="kpi-season-tag t2026" id="tag-2026-rend">2026</div><div class="kpi-label">Rendimiento</div><div class="kpi-value" id="kpi-rend-2026">—<span class="kpi-unit">t/ha</span></div><div id="kpi-delta-rend" class="kpi-delta neu">—</div></div>
+          <div class="kpi-card s2025"><div class="kpi-season-tag t2025" id="tag-2025-rend">2025 Proy.</div><div class="kpi-label">Rendimiento</div><div class="kpi-value" id="kpi-rend-2025">—<span class="kpi-unit">t/ha</span></div></div>
+        </div>
+      </div>
+      <div class="kpi-sub">
+        <div class="kpi-card s2025F" style="padding:7px 16px;"><div class="kpi-season-tag t2025F" style="font-size:8px;margin-bottom:2px;">2025 Final</div><div class="kpi-label">Superficie</div><div class="kpi-value" id="kpi-area-2025F" style="font-size:15px;">—<span class="kpi-unit">ha</span></div></div>
+        <div class="kpi-sep-v"></div>
+        <div class="kpi-card s2025F" style="padding:7px 16px;"><div class="kpi-season-tag t2025F" style="font-size:8px;margin-bottom:2px;">2025 Final</div><div class="kpi-label">Producción</div><div class="kpi-value" id="kpi-yield-2025F" style="font-size:15px;">—<span class="kpi-unit">t</span></div></div>
+        <div class="kpi-sep-v"></div>
+        <div class="kpi-card s2025F" style="padding:7px 16px;"><div class="kpi-season-tag t2025F" style="font-size:8px;margin-bottom:2px;">2025 Final</div><div class="kpi-label">Rendimiento</div><div class="kpi-value" id="kpi-rend-2025F" style="font-size:15px;">—<span class="kpi-unit">t/ha</span></div></div>
+      </div>
+    </div>
+    <div style="grid-column:1/-1;display:grid;grid-template-columns:300px 1fr 1fr;height:100%;overflow:hidden;gap:1px;background:var(--border);">
+      <!-- COL 1: ADR map -->
+      <div style="background:var(--surface);display:flex;flex-direction:column;padding:12px 14px 14px 14px;overflow:hidden;">
+        <div class="panel-title" style="margin-bottom:6px;">🗺️ Zona de Responsabilidad</div>
+        <svg id="adr-svg" viewBox="0 0 270 210" xmlns="http://www.w3.org/2000/svg" style="width:100%;flex:1;min-height:200px;display:block;border-radius:6px;background:#0d1117;max-height:calc(100% - 24px);"></svg>
+      </div>
+      <!-- COL 2: donut + por cultivo -->
+      <div style="background:var(--surface);display:flex;flex-direction:column;overflow:hidden;">
+        <div class="panel-section">
+          <div class="panel-title">🥧 Área por Cultivo</div>
+          <div class="donut-wrap" style="height:160px;">
+            <canvas id="donutChart"></canvas>
+            <div class="donut-center"><div class="donut-center-val" id="dcval">—</div><div class="donut-center-lbl">HECTÁREAS</div></div>
+          </div>
+        </div>
+        <div class="panel-section" style="overflow-y:auto;flex:1;">
+          <div class="panel-title">📋 Por Cultivo — Ambas Temporadas</div>
+          <div id="crop-compare-list"></div>
+        </div>
+      </div>
+      <!-- COL 3: por partido -->
+      <div style="background:var(--surface);display:flex;flex-direction:column;padding:12px 14px;overflow-y:auto;">
+        <div class="panel-title" style="margin-bottom:8px;">📊 Por Partido (rendimiento t/ha)</div>
+        <div id="partido-compare-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2 -->
+<div class="page" id="page2">
+  <div class="page2-wrap">
+    <div class="p2-grid">
+      <div class="chart-panel">
+        <div class="chart-title">Rendimiento por Partido
+          <div class="chart-legend"><div class="cl-item"><div class="cl-dot" style="background:#58a6ff"></div>2026</div><div class="cl-item"><div class="cl-dot" style="background:#f0b429"></div>2025</div></div>
+        </div>
+        <div class="chart-wrap"><canvas id="rendPartidoChart"></canvas></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-title">Área por Partido (ha)
+          <div class="chart-legend"><div class="cl-item"><div class="cl-dot" style="background:#58a6ff"></div>2026</div><div class="cl-item"><div class="cl-dot" style="background:#f0b429"></div>2025</div></div>
+        </div>
+        <div class="chart-wrap"><canvas id="areaPartidoChart"></canvas></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-title">Rendimiento por Cultivo (t/ha)</div>
+        <div class="chart-wrap"><canvas id="rendCropChart"></canvas></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-title">Área por Cultivo (ha)</div>
+        <div class="chart-wrap"><canvas id="areaCropChart"></canvas></div>
+      </div>
+      <div class="chart-panel p2-full">
+        <div class="chart-title">Rendimiento por Productor (productores en ambas temporadas)
+          <div class="chart-legend"><div class="cl-item"><div class="cl-dot" style="background:#58a6ff"></div>2026</div><div class="cl-item"><div class="cl-dot" style="background:#f0b429"></div>2025</div></div>
+        </div>
+        <div class="chart-wrap-lg"><canvas id="orgRendChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 3 -->
+<div class="page" id="page3">
+  <div class="detail-search-bar">
+    <span class="filter-label">Buscar firma</span>
+    <input id="firma-search" class="detail-search-input" type="text" placeholder="Nombre del productor..." oninput="onFirmaSearch(this.value)">
+    <button class="detail-search-clear" onclick="clearFirmaSearch()" title="Limpiar">✕</button>
+    <span class="detail-search-count" id="firma-count"></span>
+  </div>
+  <div class="table-wrap" style="height:calc(100vh - 52px - 43px - 38px - 37px)">
+    <table>
+      <thead><tr>
+        <th>Temporada</th><th>Partido</th><th>Productor</th><th>Cultivo</th>
+        <th style="text-align:right">Área (ha)</th><th style="text-align:right">Producción (t)</th>
+        <th style="text-align:right">Rend (t/ha)</th><th style="text-align:right">Humedad (%)</th>
+        <th>Modelo</th><th>VIN</th>
+      </tr></thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="map-tooltip" id="map-tooltip"></div>
+
+<!-- PAGE 5 RENTABILIDAD -->
+<div class="page" id="page5">
+  <div class="page5-wrap">
+    <!-- PARAMS PANEL -->
+    <div style="padding:14px 18px;background:var(--surface);border-bottom:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
+        <div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;">⚖️ Rinde de Indiferencia — <span id="rent-crop-label" style="color:var(--accent);">Soja</span></div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.6px;text-transform:uppercase;">Temporadas:</span>
+          <div id="rent-season-tags" style="display:flex;gap:4px;"></div>
+        </div>
+      </div>
+      <div class="rent-params">
+        <div class="rent-param-group">
+          <div class="rent-param-label">Costo / ha (USD)</div>
+          <input class="rent-param-input" id="ri-costo" type="number" value="650" min="0" step="10" oninput="updateRentabilidad()">
+          <div class="rent-param-hint">labores + semilla + arrendamiento</div>
+        </div>
+        <div class="rent-param-group">
+          <div class="rent-param-label">Precio Bruto / tn (USD)</div>
+          <input class="rent-param-input" id="ri-precio" type="number" value="320" min="0" step="5" oninput="updateRentabilidad()">
+          <div class="rent-param-hint">precio pizarra soja</div>
+        </div>
+        <div class="rent-param-group">
+          <div class="rent-param-label">Descuentos / tn (USD)</div>
+          <input class="rent-param-input" id="ri-desc" type="number" value="40" min="0" step="5" oninput="updateRentabilidad()">
+          <div class="rent-param-hint">cosecha + flete + almacenaje</div>
+        </div>
+        <div style="width:1px;height:60px;background:var(--border);align-self:center;flex-shrink:0;"></div>
+        <div class="rent-calc-result">
+          <div class="rent-calc-label">Precio Neto / tn</div>
+          <div class="rent-calc-value" id="ri-neto">280 <span style="font-size:12px;color:var(--muted);">USD/tn</span></div>
+        </div>
+        <div class="rent-calc-result green">
+          <div class="rent-calc-label green">Rinde de Indiferencia</div>
+          <div class="rent-calc-value green" id="ri-umbral">2.32 <span style="font-size:12px;color:var(--muted);">t/ha</span></div>
+        </div>
+        <div style="margin-left:auto;align-self:center;background:rgba(139,148,158,.06);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:10px;color:var(--muted);max-width:220px;line-height:1.5;">
+          El <strong style="color:var(--text);">rinde de indiferencia</strong> es la producción mínima necesaria por hectárea para cubrir todos los costos de la campaña.
+        </div>
+      </div>
+    </div>
+    <!-- KPI ROW -->
+    <div class="rent-kpi-row">
+      <div class="rent-kpi-card">
+        <div class="rent-kpi-label" id="rkpi-umbral-label">Umbral</div>
+        <div class="rent-kpi-value" id="rkpi-umbral" style="color:var(--accent);">—</div>
+        <div class="rent-kpi-sub">t/ha mínimo requerido</div>
+      </div>
+      <div class="rent-kpi-card">
+        <div class="rent-kpi-label">Sobre Umbral</div>
+        <div class="rent-kpi-value" id="rkpi-over" style="color:var(--green);">—</div>
+        <div class="rent-kpi-sub" id="rkpi-over-sub">campos rentables</div>
+      </div>
+      <div class="rent-kpi-card">
+        <div class="rent-kpi-label">Bajo Umbral</div>
+        <div class="rent-kpi-value" id="rkpi-under" style="color:var(--red);">—</div>
+        <div class="rent-kpi-sub" id="rkpi-under-sub">campos con pérdida</div>
+      </div>
+      <div class="rent-kpi-card">
+        <div class="rent-kpi-label">Resultado / ha</div>
+        <div class="rent-kpi-value" id="rkpi-result" style="color:var(--green);">—</div>
+        <div class="rent-kpi-sub" id="rkpi-result-sub">USD neto por hectárea</div>
+      </div>
+    </div>
+    <!-- TABLA PRINCIPAL -->
+    <div class="rent-panel" style="border-bottom:1px solid var(--border);">
+      <div class="rent-panel-title" id="rent-table-title">Rentabilidad por Productor — click para ver lotes</div>
+      <div class="rent-table-wrap">
+        <table class="rent-table" id="rent-table">
+          <thead id="rent-table-head"></thead>
+          <tbody id="rent-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <!-- GRÁFICOS -->
+    <div class="rent-grid">
+      <div class="rent-panel">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div class="rent-panel-title" id="rent-bar-title" style="margin-bottom:0;">Rendimiento por Productor vs. Umbral</div>
+          <div style="margin-left:auto;display:flex;gap:3px;">
+            <button id="rent-view-org"  onclick="setRentView('org')"  class="rent-view-btn active">Por Productor</button>
+            <button id="rent-view-lote" onclick="setRentView('lote')" class="rent-view-btn">Por Lote</button>
+          </div>
+        </div>
+        <div class="rent-chart-wrap"><canvas id="rentBarChart"></canvas></div>
+      </div>
+      <div class="rent-panel">
+        <div class="rent-panel-title">Distribución de Rendimientos (ha por rango)</div>
+        <div class="rent-chart-wrap"><canvas id="rentDistChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 4 MÁQUINAS -->
+<div class="page" id="page4">
+  <div class="page4-wrap">
+    <!-- KPI ROW -->
+    <div class="maq-kpi-row">
+      <div class="maq-kpi-card">
+        <div class="maq-kpi-label">Máquinas Únicas</div>
+        <div class="maq-kpi-value" id="maq-total">—</div>
+        <div class="maq-kpi-sub">cosechadoras identificadas</div>
+      </div>
+      <div class="maq-kpi-card">
+        <div class="maq-kpi-label">Modelos Detectados</div>
+        <div class="maq-kpi-value" id="maq-modelos-count">—</div>
+        <div class="maq-model-pills" id="maq-model-pills"></div>
+      </div>
+      <div class="maq-kpi-card">
+        <div class="maq-kpi-label">Ha Promedio por Máquina</div>
+        <div class="maq-kpi-value" id="maq-ha-prom">—</div>
+        <div class="maq-kpi-sub">hectáreas / cosechadora</div>
+      </div>
+      <div class="maq-kpi-card">
+        <div class="maq-kpi-label">Modelo más Usado</div>
+        <div class="maq-kpi-value" id="maq-top-model" style="font-size:16px;margin-top:2px;">—</div>
+        <div class="maq-kpi-sub" id="maq-top-model-sub"></div>
+      </div>
+    </div>
+    <!-- CHARTS ROW -->
+    <div class="maq-grid">
+      <div class="maq-panel">
+        <div class="maq-panel-title">Área Cosechada por Modelo (ha)</div>
+        <div class="maq-chart-wrap"><canvas id="maqAreaModelChart"></canvas></div>
+      </div>
+      <div class="maq-panel">
+        <div class="maq-panel-title">Rendimiento Promedio por Modelo (t/ha)</div>
+        <div class="maq-chart-wrap"><canvas id="maqRendModelChart"></canvas></div>
+      </div>
+      <div class="maq-panel maq-grid-full">
+        <div class="maq-panel-title">Hectáreas por Máquina — por Temporada</div>
+        <div class="maq-chart-wrap-lg"><canvas id="maqHaSeasonChart"></canvas></div>
+      </div>
+    </div>
+    <!-- TABLE -->
+    <div class="maq-panel" style="background:var(--surface);padding:14px 18px;">
+      <div class="maq-panel-title">Detalle por Máquina</div>
+      <div class="maq-table-wrap">
+        <table class="maq-table">
+          <thead><tr>
+            <th>Modelo</th><th>VIN</th><th>Temporadas</th>
+            <th style="text-align:right">Área Total (ha)</th>
+            <th style="text-align:right">Producción (t)</th>
+            <th style="text-align:right">Rend Prom (t/ha)</th>
+            <th style="text-align:right">Humedad Prom (%)</th>
+            <th>Cultivos</th>
+            <th>Productores</th>
+          </tr></thead>
+          <tbody id="maq-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DATA LOADING ────────────────────────────────────────────────────────────
+const SEASONS = [
+  { label: '2026' },
+  { label: '2025F' },
+  { label: '2025' },
+];
+
+async function loadData() {
+  const bar = document.getElementById('loading-bar');
+  const txt = document.getElementById('loading-text');
+  txt.textContent = 'Cargando datos...';
+  bar.style.width = '40%';
+  try {
+    const res = await fetch('data/campos.json?v=' + Date.now());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    bar.style.width = '90%';
+    const fields = await res.json();
+    bar.style.width = '100%';
+    txt.textContent = 'Iniciando dashboard...';
+    await new Promise(r => setTimeout(r, 200));
+    return fields;
+  } catch(e) {
+    console.error('Error cargando campos.json:', e);
+    txt.textContent = 'Error: no se encontró data/campos.json';
+    return [];
+  }
+}
+
+// ── CONSTANTS ───────────────────────────────────────────────────────────────
+// ── ADR ZONE MAP ────────────────────────────────────────────────────────────
+const ADR_PARTIDOS = [{"name": "Tandil", "coords": [[-36.9164, -59.2654], [-37.0626, -59.0898], [-37.4105, -58.6114], [-37.8262, -59.1108], [-37.7579, -59.1338], [-37.7369, -59.1655], [-37.7005, -59.1706], [-37.6595, -59.1523], [-37.6277, -59.1661], [-37.6164, -59.1848], [-37.6504, -59.2262], [-37.2378, -59.7804], [-37.2159, -59.7001], [-37.132, -59.5865], [-37.0972, -59.5673], [-37.0823, -59.5216], [-37.0361, -59.4801], [-37.021, -59.437], [-36.8966, -59.3598], [-36.8445, -59.3597], [-36.9164, -59.2654]]}, {"name": "Adolfo Gonzales Chaves", "coords": [[-37.6619, -60.378], [-37.6972, -60.4238], [-37.7771, -60.3232], [-37.7275, -60.2614], [-37.8515, -60.0872], [-37.8285, -60.059], [-37.8599, -60.0196], [-37.7947, -59.9364], [-37.9132, -59.7543], [-38.0238, -59.6418], [-38.1469, -59.7897], [-38.1552, -59.7785], [-38.1646, -59.7896], [-38.1908, -59.7548], [-38.2104, -59.7774], [-38.1972, -59.795], [-38.2313, -59.835], [-38.1568, -59.8867], [-38.2806, -60.0371], [-38.0163, -60.3704], [-38.0898, -60.4633], [-38.1065, -60.4424], [-38.1919, -60.5494], [-38.028, -60.7598], [-38.0158, -60.7449], [-37.9346, -60.8464], [-37.7209, -60.5555], [-37.7009, -60.582], [-37.6012, -60.4525], [-37.6619, -60.378]]}, {"name": "Rauch", "coords": [[-36.1619, -58.8154], [-36.208, -58.7636], [-36.2255, -58.7833], [-36.3634, -58.597], [-36.3473, -58.5784], [-36.452, -58.4376], [-36.7002, -58.7208], [-36.7426, -58.6665], [-36.7527, -58.7199], [-36.7894, -58.7903], [-36.8364, -58.8358], [-36.8381, -58.8655], [-36.8607, -58.8722], [-36.8755, -58.91], [-36.9362, -58.9366], [-36.9612, -59.0219], [-37.025, -59.0403], [-37.0626, -59.0898], [-36.8445, -59.3597], [-36.8173, -59.3473], [-36.7648, -59.2803], [-36.6463, -59.2561], [-36.6162, -59.2273], [-36.5735, -59.2225], [-36.5906, -59.1955], [-36.5424, -59.138], [-36.4933, -59.2027], [-36.4833, -59.1905], [-36.4373, -59.2501], [-36.4209, -59.2296], [-36.374, -59.2897], [-36.3212, -59.2181], [-36.2755, -59.1063], [-36.2467, -59.1026], [-36.2217, -59.0711], [-36.2147, -59.0228], [-36.1504, -58.8803], [-36.1417, -58.8411], [-36.1619, -58.8154]]}, {"name": "San Cayetano", "coords": [[-38.0423, -59.6261], [-38.0567, -59.5384], [-38.1134, -59.4161], [-38.1145, -59.3539], [-38.1537, -59.2445], [-38.205, -59.3103], [-38.3035, -59.3539], [-38.3834, -59.3168], [-38.4574, -59.4061], [-38.5006, -59.3347], [-38.5457, -59.3394], [-38.5888, -59.4457], [-38.6043, -59.4314], [-38.5974, -59.4047], [-38.622, -59.4112], [-38.7356, -59.3263], [-38.7858, -59.627], [-38.7426, -59.6262], [-38.7372, -59.647], [-38.6995, -59.6551], [-38.6537, -59.7036], [-38.6369, -59.691], [-38.5335, -59.7339], [-38.4887, -59.7348], [-38.5158, -59.7675], [-38.4751, -59.8218], [-38.5288, -59.8869], [-38.4911, -59.9372], [-38.4396, -59.8747], [-38.3708, -59.9906], [-38.1972, -59.795], [-38.2104, -59.7774], [-38.1908, -59.7548], [-38.1646, -59.7896], [-38.1552, -59.7785], [-38.1469, -59.7897], [-38.0238, -59.6418], [-38.0423, -59.6261]]}, {"name": "Tres Arroyos", "coords": [[-38.1784, -60.1695], [-38.2806, -60.0371], [-38.1609, -59.8825], [-38.242, -59.8342], [-38.3708, -59.9906], [-38.4396, -59.8747], [-38.4911, -59.9372], [-38.5288, -59.8869], [-38.4751, -59.8218], [-38.5158, -59.7675], [-38.4887, -59.7348], [-38.5335, -59.7339], [-38.6369, -59.691], [-38.6537, -59.7036], [-38.6995, -59.6551], [-38.7372, -59.647], [-38.7426, -59.6262], [-38.7858, -59.627], [-38.8374, -59.854], [-38.9309, -60.5124], [-38.9133, -60.5293], [-38.8841, -60.5216], [-38.8222, -60.5365], [-38.6191, -60.6109], [-38.5865, -60.6125], [-38.5566, -60.5913], [-38.4712, -60.6193], [-38.3648, -60.7453], [-38.2999, -60.7345], [-38.2298, -60.7473], [-38.2242, -60.7196], [-38.117, -60.7248], [-38.1148, -60.7016], [-38.0873, -60.6841], [-38.1919, -60.5494], [-38.1065, -60.4424], [-38.0898, -60.4633], [-38.0163, -60.3704], [-38.1784, -60.1695]]}, {"name": "Coronel Dorrego", "coords": [[-38.2925, -61.1751], [-38.3103, -60.9917], [-38.4065, -60.8401], [-38.3368, -60.735], [-38.3753, -60.739], [-38.4712, -60.6193], [-38.5566, -60.5913], [-38.5865, -60.6125], [-38.6191, -60.6109], [-38.8222, -60.5365], [-38.8841, -60.5216], [-38.9133, -60.5293], [-38.9309, -60.5124], [-38.9798, -60.8528], [-38.9883, -61.0868], [-38.9473, -61.0868], [-38.9466, -61.3147], [-38.9137, -61.3408], [-38.9137, -61.4561], [-38.9419, -61.4561], [-38.9458, -61.4747], [-38.8579, -61.6629], [-38.8176, -61.6998], [-38.7815, -61.6992], [-38.7534, -61.7217], [-38.6591, -61.7296], [-38.5436, -61.5931], [-38.5004, -61.5266], [-38.5088, -61.5151], [-38.4757, -61.4739], [-38.483, -61.4659], [-38.3754, -61.3295], [-38.3918, -61.319], [-38.2925, -61.1751]]}, {"name": "Necochea", "coords": [[-37.701, -59.1704], [-37.7369, -59.1655], [-37.7579, -59.1338], [-37.8302, -59.1078], [-37.8793, -59.1646], [-37.9363, -59.1683], [-37.974, -59.1274], [-37.9953, -59.1254], [-38.047, -59.0541], [-38.087, -59.0387], [-38.1554, -58.9542], [-38.1829, -58.9517], [-38.1928, -58.9205], [-38.2454, -58.9071], [-38.2916, -58.8672], [-38.3195, -58.8158], [-38.3777, -58.7825], [-38.4016, -58.7875], [-38.4721, -58.7576], [-38.481, -58.7401], [-38.4887, -58.7519], [-38.516, -58.7399], [-38.4952, -58.7075], [-38.562, -58.6198], [-38.6785, -59.0122], [-38.7356, -59.3263], [-38.622, -59.4112], [-38.5974, -59.4047], [-38.6043, -59.4314], [-38.5888, -59.4457], [-38.5457, -59.3394], [-38.5006, -59.3347], [-38.4574, -59.4061], [-38.3834, -59.3168], [-38.3035, -59.3539], [-38.205, -59.3103], [-38.1537, -59.2445], [-38.1145, -59.3539], [-38.1134, -59.4161], [-38.0567, -59.5384], [-38.044, -59.6224], [-37.9998, -59.6762], [-37.7338, -59.3403], [-37.701, -59.2742], [-37.6164, -59.1848], [-37.6577, -59.1525], [-37.701, -59.1704]]}, {"name": "Ayacucho", "coords": [[-36.728, -58.1144], [-36.8809, -58.2863], [-37.0768, -58.0203], [-37.0076, -57.9443], [-37.1361, -57.7696], [-37.437, -58.0956], [-37.3882, -58.1636], [-37.4921, -58.2824], [-37.4394, -58.3546], [-37.5007, -58.4268], [-37.3835, -58.5775], [-37.4105, -58.6114], [-37.0626, -59.0898], [-37.025, -59.0403], [-36.9612, -59.0219], [-36.9362, -58.9366], [-36.8755, -58.91], [-36.8607, -58.8722], [-36.8381, -58.8655], [-36.8364, -58.8358], [-36.7894, -58.7903], [-36.7527, -58.7199], [-36.7426, -58.6665], [-36.7002, -58.7208], [-36.452, -58.4376], [-36.6153, -58.2126], [-36.6279, -58.2262], [-36.728, -58.1144]]}, {"name": "Benito Ju\u00e1rez", "coords": [[-37.3395, -59.9876], [-37.3799, -60.0373], [-37.4471, -59.9533], [-37.3708, -59.8607], [-37.3554, -59.8805], [-37.3115, -59.827], [-37.2564, -59.8123], [-37.2378, -59.7804], [-37.6504, -59.2262], [-37.701, -59.2742], [-37.7338, -59.3403], [-37.9998, -59.6762], [-37.9794, -59.673], [-37.9561, -59.7175], [-37.9132, -59.7543], [-37.7947, -59.9364], [-37.8599, -60.0196], [-37.8285, -60.059], [-37.8515, -60.0872], [-37.7275, -60.2614], [-37.7771, -60.3232], [-37.6972, -60.4238], [-37.6619, -60.378], [-37.5894, -60.4666], [-37.4961, -60.3495], [-37.373, -60.5019], [-37.3488, -60.4707], [-37.3751, -60.4376], [-37.1766, -60.2008], [-37.3395, -59.9876]]}, {"name": "Lober\u00eda", "coords": [[-37.8057, -58.5074], [-37.8778, -58.5907], [-38.074, -58.3289], [-38.1595, -58.3433], [-38.2235, -58.3232], [-38.2511, -58.3383], [-38.3156, -58.2838], [-38.3544, -58.2702], [-38.3852, -58.2851], [-38.4458, -58.238], [-38.5375, -58.4976], [-38.562, -58.6198], [-38.4952, -58.7075], [-38.516, -58.7399], [-38.4887, -58.7519], [-38.481, -58.7401], [-38.4363, -58.7742], [-38.3296, -58.8085], [-38.2916, -58.8672], [-38.2454, -58.9071], [-38.1933, -58.9201], [-38.1829, -58.9517], [-38.1554, -58.9542], [-38.087, -59.0387], [-38.0204, -59.0785], [-37.9953, -59.1254], [-37.974, -59.1274], [-37.9363, -59.1683], [-37.8862, -59.168], [-37.578, -58.809], [-37.8057, -58.5074]]}];
+
+function renderADRMap() {
+  const svg = document.getElementById('adr-svg');
+  if (!svg) return;
+  const W=270, H=210, PAD=12;
+  let minLat=99,maxLat=-99,minLon=99,maxLon=-99;
+  ADR_PARTIDOS.forEach(p=>p.coords.forEach(c=>{
+    if(c[0]<minLat)minLat=c[0];if(c[0]>maxLat)maxLat=c[0];
+    if(c[1]<minLon)minLon=c[1];if(c[1]>maxLon)maxLon=c[1];
+  }));
+  const scale=Math.min((W-PAD*2)/(maxLon-minLon),(H-PAD*2)/(maxLat-minLat));
+  const offX=PAD+((W-PAD*2)-(maxLon-minLon)*scale)/2;
+  const offY=PAD+((H-PAD*2)-(maxLat-minLat)*scale)/2;
+  const toX=lon=>offX+(lon-minLon)*scale;
+  const toY=lat=>offY+(maxLat-lat)*scale;
+  const dataMap={'Tandil':'TANDIL','Necochea':'NECOCHEA','Lobería':'LOBERIA','Benito Juárez':'JUAREZ','Tres Arroyos':'TRESARROYOS','San Cayetano':'SANCAYETANO','Coronel Dorrego':'DORREGO','Ayacucho':'AYACUCHO'};
+  const dataPartidos=new Set(Object.values(dataMap));
+  let html='<defs><filter id="glow"><feGaussianBlur stdDeviation="1.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+  // Draw non-data partidos first (background)
+  ADR_PARTIDOS.forEach(p=>{
+    const key=dataMap[p.name]||'';
+    if(dataPartidos.has(key)) return;
+    const pts=p.coords.map(c=>`${toX(c[1]).toFixed(1)},${toY(c[0]).toFixed(1)}`).join(' ');
+    html+=`<polygon points="${pts}" fill="rgba(88,166,255,0.05)" stroke="#21262d" stroke-width="0.8" stroke-linejoin="round"/>`;
+  });
+  // Draw data partidos on top
+  ADR_PARTIDOS.forEach(p=>{
+    const key=dataMap[p.name]||'';
+    if(!dataPartidos.has(key)) return;
+    const pts=p.coords.map(c=>`${toX(c[1]).toFixed(1)},${toY(c[0]).toFixed(1)}`).join(' ');
+    html+=`<polygon points="${pts}" fill="rgba(240,180,41,0.18)" stroke="#f0b429" stroke-width="1.5" stroke-linejoin="round" filter="url(#glow)"/>`;
+    const cx=p.coords.reduce((s,c)=>s+toX(c[1]),0)/p.coords.length;
+    const cy=p.coords.reduce((s,c)=>s+toY(c[0]),0)/p.coords.length;
+    const short=p.name.replace('Coronel ','').replace('Benito ','').split(' ')[0];
+    html+=`<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="7" fill="#f0b429" font-family="monospace" font-weight="bold" opacity="0.95">${short}</text>`;
+  });
+  svg.innerHTML=html;
+}
+
+const CROP_COLORS = {'Girasol':'#f0b429','Maiz':'#e85d04','Trigo':'#9ef0f0','Soja':'#4ade80','Cebada':'#c084fc','Avena':'#fb923c','Canola':'#34d399','OTROS':'#64748b'};
+const SEASON_COLORS = {'2026':'#58a6ff','2025F':'#a78bfa','2025':'#f0b429'};
+
+// ════════════════════════════════════════════════════════════════════════════
+// PARÁMETROS ECONÓMICOS POR PARTIDO Y CULTIVO
+// ─────────────────────────────────────────────────────────────────────────
+// Editá estos valores para cambiar los DEFAULTS del simulador de rentabilidad.
+// Estructura: RENT_PRESETS[PARTIDO][CULTIVO] = { costo, precio, desc }
+//   · costo  → costo total por hectárea en USD (labores + semilla + arrendamiento)
+//   · precio → precio bruto por tonelada en USD (pizarra)
+//   · desc   → descuentos por tonelada en USD (cosecha + flete + almacenaje)
+//
+// Si un partido no tiene entrada, usa el bloque 'DEFAULT'.
+// Si un cultivo no está en el partido, cae al DEFAULT del cultivo.
+// ════════════════════════════════════════════════════════════════════════════
+const RENT_PRESETS = {
+
+  // ── Valores por defecto (se usan cuando no hay preset específico) ─────────
+  DEFAULT: {
+    Soja:    { costo: 650, precio: 320, desc: 40 },
+    Maiz:    { costo: 790, precio: 180, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 480, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── TANDIL ────────────────────────────────────────────────────────────────
+  TANDIL: {
+    Soja:    { costo: 630, precio: 310, desc: 40 },
+    Maiz:    { costo: 820, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 650, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── AYACUCHO ──────────────────────────────────────────────────────────────
+  AYACUCHO: {
+    Soja:    { costo: 600, precio: 310, desc: 40 },
+    Maiz:    { costo: 800, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 620, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── CHAVES ────────────────────────────────────────────────────────────────
+  CHAVES: {
+    Soja:    { costo: 650, precio: 310, desc: 40 },
+    Maiz:    { costo: 800, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 480, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── DORREGO ───────────────────────────────────────────────────────────────
+  DORREGO: {
+    Soja:    { costo: 500, precio: 310, desc: 40 },
+    Maiz:    { costo: 620, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 520, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── JUAREZ ────────────────────────────────────────────────────────────────
+  JUAREZ: {
+    Soja:    { costo: 540, precio: 310, desc: 40 },
+    Maiz:    { costo: 680, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 560, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── LOBERIA ───────────────────────────────────────────────────────────────
+  LOBERIA: {
+    Soja:    { costo: 680, precio: 310, desc: 40 },
+    Maiz:    { costo: 870, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 700, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── NECOCHEA ──────────────────────────────────────────────────────────────
+  NECOCHEA: {
+    Soja:    { costo: 680, precio: 310, desc: 40 },
+    Maiz:    { costo: 870, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 700, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── RAUCH ─────────────────────────────────────────────────────────────────
+  RAUCH: {
+    Soja:    { costo: 600, precio: 310, desc: 40 },
+    Maiz:    { costo: 800, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 620, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── SANCAYETANO ───────────────────────────────────────────────────────────
+  SANCAYETANO: {
+    Soja:    { costo: 560, precio: 310, desc: 40 },
+    Maiz:    { costo: 740, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 580, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+  // ── TRESARROYOS ───────────────────────────────────────────────────────────
+  TRESARROYOS: {
+    Soja:    { costo: 620, precio: 310, desc: 40 },
+    Maiz:    { costo: 800, precio: 200, desc: 35 },
+    Trigo:   { costo: 520, precio: 230, desc: 35 },
+    Cebada:  { costo: 500, precio: 220, desc: 35 },
+    Girasol: { costo: 640, precio: 390, desc: 40 },
+    Avena:   { costo: 420, precio: 160, desc: 30 },
+    Canola:  { costo: 550, precio: 380, desc: 40 },
+  },
+
+};
+
+// Devuelve el preset correcto según partido y cultivo activos.
+// Prioridad: partido+cultivo → DEFAULT+cultivo → hardcoded fallback
+function getRentPreset(partido, cultivo) {
+  const byPartido = RENT_PRESETS[partido] || {};
+  const byCultivo = byPartido[cultivo] || RENT_PRESETS.DEFAULT[cultivo];
+  return byCultivo || { costo: 650, precio: 320, desc: 40 };
+}
+
+// Carga el preset en los inputs sin disparar renderRentabilidad todavía.
+// Llamar esto cuando cambia partido o cultivo.
+function applyRentPreset() {
+  const inputs = ['ri-costo','ri-precio','ri-desc'];
+  const partido = partidoFilter !== 'all' ? partidoFilter.toUpperCase() : 'DEFAULT';
+  const cultivo = cropFilter    !== 'all' ? cropFilter                  : null;
+
+  // Ambos filtros en "Todos" → mostrar guiones en los inputs
+  if (!cultivo && partidoFilter === 'all') {
+    inputs.forEach(id => {
+      const el = document.getElementById(id);
+      el.type        = 'text';
+      el.value       = '';
+      el.placeholder = '————';
+      el.style.color = 'var(--muted)';
+    });
+    return;
+  }
+
+  // Al menos un filtro activo → restaurar inputs numéricos con preset
+  inputs.forEach(id => {
+    const el = document.getElementById(id);
+    el.type        = 'number';
+    el.placeholder = '';
+    el.style.color = '';
+  });
+  if (!cultivo) return;   // solo partido definido pero sin cultivo: restaura tipo y sale
+  const p = getRentPreset(partido, cultivo);
+  document.getElementById('ri-costo').value  = p.costo;
+  document.getElementById('ri-precio').value = p.precio;
+  document.getElementById('ri-desc').value   = p.desc;
+}
+
+// ── STATE ───────────────────────────────────────────────────────────────────
+let ALL_FIELDS = [];
+let ALL_PARTIDOS = [];
+let cropFilter = 'all';
+let partidoFilter = 'all';
+let firmaFilter = '';
+let seasonVis = {};
+let donutChart, rendPC, areaPC, rendCC, areaCC, orgRC;
+let leafletMap, layerGroup;
+
+// ── BOOT ────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  ALL_FIELDS = await loadData();
+
+  // Init season visibility from loaded data
+  SEASONS.forEach(s => { seasonVis[s.label] = true; });
+
+  ALL_PARTIDOS = [...new Set(ALL_FIELDS.map(d => d.partido))].sort();
+
+  document.getElementById('loading-screen').classList.add('hidden');
+  buildPartidoBar();
+  renderADRMap();
+  // Set date labels on KPI tags
+  ['area','yield','rend'].forEach(m => {
+    const t26 = document.getElementById(`tag-2026-${m}`);
+    const t25 = document.getElementById(`tag-2025-${m}`);
+    if(t26) t26.textContent = `2026 · ${TODAY_LABEL}`;
+    if(t25) t25.textContent = `2025 · ${TODAY_LABEL}`;
+  });
+  // Force season buttons to active state
+  SEASONS.forEach(s => {
+    const btn = document.getElementById('sbtn-'+s.label);
+    if(btn) btn.className = `season-btn active-${s.label}`;
+  });
+  renderAll();
+});
+
+function buildPartidoBar() {
+  const bar = document.getElementById('partido-bar');
+  const all = document.createElement('div');
+  all.className = 'filter-chip active';
+  all.dataset.partido = 'all';
+  all.textContent = 'Todos';
+  all.onclick = () => setPartido('all');
+  bar.appendChild(all);
+  ALL_PARTIDOS.forEach(p => {
+    const chip = document.createElement('div');
+    chip.className = 'filter-chip';
+    chip.dataset.partido = p;
+    chip.textContent = fmtPartido(p);
+    chip.onclick = () => setPartido(p);
+    bar.appendChild(chip);
+  });
+}
+
+function getActiveFields() {
+  return ALL_FIELDS.filter(d => {
+    if (cropFilter !== 'all' && d.crop !== cropFilter) return false;
+    if (partidoFilter !== 'all' && d.partido !== partidoFilter) return false;
+    if (!seasonVis[d.file]) return false;
+    return true;
+  });
+}
+
+function calcStats(fields) {
+  const byCrop={}, byOrg={}, byPartido={};
+  let moist=0;
+  fields.forEach(d => {
+    if(!byCrop[d.crop]) byCrop[d.crop]={area:0,yield:0,count:0};
+    byCrop[d.crop].area+=d.area; byCrop[d.crop].yield+=d.yt; byCrop[d.crop].count++;
+    if(!byOrg[d.org]) byOrg[d.org]={area:0,yield:0,count:0};
+    byOrg[d.org].area+=d.area; byOrg[d.org].yield+=d.yt; byOrg[d.org].count++;
+    if(!byPartido[d.partido]) byPartido[d.partido]={area:0,yield:0,count:0};
+    byPartido[d.partido].area+=d.area; byPartido[d.partido].yield+=d.yt; byPartido[d.partido].count++;
+    moist+=d.mo;
+  });
+  const totalArea=fields.reduce((s,d)=>s+d.area,0);
+  const totalYield=fields.reduce((s,d)=>s+d.yt,0);
+  return {byCrop,byOrg,byPartido,totalArea,totalYield,totalMoist:fields.length?moist/fields.length:0,count:fields.length};
+}
+
+// ── RENDER ALL ──────────────────────────────────────────────────────────────
+function renderAll() {
+  const active = getActiveFields();
+  const filtered = {};
+  SEASONS.forEach(s => {
+    filtered[s.label] = ALL_FIELDS.filter(d =>
+      d.file === s.label &&
+      (cropFilter==='all'||d.crop===cropFilter) &&
+      (partidoFilter==='all'||d.partido===partidoFilter)
+    );
+  });
+  const stats = {};
+  SEASONS.forEach(s => { stats[s.label] = calcStats(filtered[s.label]); });
+  const s26 = stats['2026'] || calcStats([]);
+  const s25F = stats['2025F'] || calcStats([]);
+  const s25 = stats['2025'] || calcStats([]);
+  const statsAll = calcStats(active);
+
+  updateKPIs(s26, s25F, s25);
+  renderDonut(statsAll);
+  renderCropCompare(s26, s25);
+  renderPartidoCompare(s26, s25);
+  updateMap(active);
+  renderCharts(s26, s25F, s25);
+  renderTable(active);
+  document.getElementById('filter-count').textContent = `${active.length} lotes · ${Object.keys(statsAll.byOrg).length} productores`;
+  if(document.getElementById('page4').classList.contains('active')) renderMachines();
+  if(document.getElementById('page5').classList.contains('active')) renderRentabilidad();
+}
+
+// ── KPIs ────────────────────────────────────────────────────────────────────
+const PARTIDO_NAMES = {
+  'TRESARROYOS': 'Tres Arroyos',
+  'SANCAYETANO': 'San Cayetano',
+  'TANDIL': 'Tandil',
+  'NECOCHEA': 'Necochea',
+  'LOBERIA': 'Lobería',
+  'JUAREZ': 'Juárez',
+  'DORREGO': 'Dorrego',
+  'AYACUCHO': 'Ayacucho',
+};
+function fmtPartido(p){ return PARTIDO_NAMES[p] || (p.charAt(0)+p.slice(1).toLowerCase()); }
+
+// Dynamic date label — "1 ene - 17 mar"
+function todayLabel() {
+  const hoy = new Date();
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `1 ene – ${hoy.getDate()} ${meses[hoy.getMonth()]}`;
+}
+const TODAY_LABEL = todayLabel();
+function fmtN(n){return n.toLocaleString('es-AR',{maximumFractionDigits:1});}
+function makeDelta(a,b,id){
+  const el=document.getElementById(id); if(!el||!b) return;
+  const d=((a-b)/b*100).toFixed(1);
+  const cls=d>0?'up':d<0?'dn':'neu';
+  const sign=d>0?'▲':d<0?'▼':'—';
+  el.className=`kpi-delta ${cls}`;
+  el.textContent=`${sign} ${Math.abs(d)}%`;
+}
+function updateKPIs(s26,s25F,s25){
+  const r26=s26.totalArea>0?s26.totalYield/s26.totalArea:0;
+  const r25F=s25F.totalArea>0?s25F.totalYield/s25F.totalArea:0;
+  const r25=s25.totalArea>0?s25.totalYield/s25.totalArea:0;
+  document.getElementById('kpi-area-2026').innerHTML=fmtN(s26.totalArea)+'<span class="kpi-unit">ha</span>';
+  document.getElementById('kpi-area-2025F').innerHTML=fmtN(s25F.totalArea)+'<span class="kpi-unit">ha</span>';
+  document.getElementById('kpi-area-2025').innerHTML=fmtN(s25.totalArea)+'<span class="kpi-unit">ha</span>';
+  document.getElementById('kpi-yield-2026').innerHTML=fmtN(s26.totalYield)+'<span class="kpi-unit">t</span>';
+  document.getElementById('kpi-yield-2025F').innerHTML=fmtN(s25F.totalYield)+'<span class="kpi-unit">t</span>';
+  document.getElementById('kpi-yield-2025').innerHTML=fmtN(s25.totalYield)+'<span class="kpi-unit">t</span>';
+  document.getElementById('kpi-rend-2026').innerHTML=r26.toFixed(2).replace('.',',')+'<span class="kpi-unit">t/ha</span>';
+  document.getElementById('kpi-rend-2025F').innerHTML=r25F.toFixed(2).replace('.',',')+'<span class="kpi-unit">t/ha</span>';
+  document.getElementById('kpi-rend-2025').innerHTML=r25.toFixed(2).replace('.',',')+'<span class="kpi-unit">t/ha</span>';
+  makeDelta(s26.totalArea,s25.totalArea,'kpi-delta-area');
+  makeDelta(s26.totalYield,s25.totalYield,'kpi-delta-yield');
+  makeDelta(r26,r25,'kpi-delta-rend');
+}
+
+// ── DONUT ───────────────────────────────────────────────────────────────────
+function renderDonut(stats){
+  const labels=Object.keys(stats.byCrop);
+  const areas=labels.map(k=>stats.byCrop[k].area);
+  const colors=labels.map(k=>CROP_COLORS[k]||'#64748b');
+  document.getElementById('dcval').textContent=Math.round(stats.totalArea).toLocaleString('es-AR');
+  if(donutChart) donutChart.destroy();
+  donutChart=new Chart(document.getElementById('donutChart'),{
+    type:'doughnut',
+    data:{labels,datasets:[{data:areas,backgroundColor:colors,borderWidth:2,borderColor:'#161b22',hoverBorderWidth:3}]},
+    options:{cutout:'68%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.parsed.toFixed(0)} ha`}}},animation:{duration:400}}
+  });
+}
+
+// ── CROP COMPARE ────────────────────────────────────────────────────────────
+function renderCropCompare(s26,s25){
+  const allCrops=new Set([...Object.keys(s26.byCrop),...Object.keys(s25.byCrop)]);
+  const maxA=Math.max(...[...allCrops].map(c=>Math.max(s26.byCrop[c]?.area||0,s25.byCrop[c]?.area||0)));
+  const el=document.getElementById('crop-compare-list'); el.innerHTML='';
+  [...allCrops].sort((a,b)=>(s26.byCrop[b]?.area||0)-(s26.byCrop[a]?.area||0)).forEach(crop=>{
+    const v26=s26.byCrop[crop]||{area:0,yield:0}; const v25=s25.byCrop[crop]||{area:0,yield:0};
+    const r26=v26.area>0?(v26.yield/v26.area).toFixed(2):'—'; const r25=v25.area>0?(v25.yield/v25.area).toFixed(2):'—';
+    const p26=maxA>0?(v26.area/maxA*100).toFixed(1):0; const p25=maxA>0?(v25.area/maxA*100).toFixed(1):0;
+    const color=CROP_COLORS[crop]||'#64748b';
+    el.innerHTML+=`<div class="crop-compare-item">
+      <div class="cci-header"><div class="cci-dot" style="background:${color}"></div><div class="cci-name">${crop}</div></div>
+      <div class="cci-bars">
+        <div class="cci-bar-row"><span class="cci-bar-lbl t2026">2026 · ${v26.area.toFixed(0)}ha · ${r26}t/ha</span><div class="cci-bar-bg"><div class="cci-bar-fill" style="width:${p26}%;background:var(--s2026)"></div></div></div>
+        <div class="cci-bar-row"><span class="cci-bar-lbl t2025">2025 · ${v25.area.toFixed(0)}ha · ${r25}t/ha</span><div class="cci-bar-bg"><div class="cci-bar-fill" style="width:${p25}%;background:var(--s2025)"></div></div></div>
+      </div></div>`;
+  });
+}
+
+// ── PARTIDO COMPARE PANEL ───────────────────────────────────────────────────
+function renderPartidoCompare(s26,s25){
+  const allP=new Set([...Object.keys(s26.byPartido),...Object.keys(s25.byPartido)]);
+  const maxR=Math.max(...[...allP].map(p=>{
+    const r26=s26.byPartido[p]; const r25=s25.byPartido[p];
+    return Math.max(r26&&r26.area>0?r26.yield/r26.area:0, r25&&r25.area>0?r25.yield/r25.area:0);
+  }));
+  const el=document.getElementById('partido-compare-list'); el.innerHTML='';
+  [...allP].sort().forEach(p=>{
+    const v26=s26.byPartido[p]||{area:0,yield:0}; const v25=s25.byPartido[p]||{area:0,yield:0};
+    const r26=v26.area>0?v26.yield/v26.area:0; const r25=v25.area>0?v25.yield/v25.area:0;
+    const pct26=maxR>0?(r26/maxR*100).toFixed(1):0; const pct25=maxR>0?(r25/maxR*100).toFixed(1):0;
+    const label=fmtPartido(p);
+    el.innerHTML+=`<div class="partido-row" onclick="setPartido('${p===partidoFilter?'all':p}')">
+      <div class="partido-name">${label}</div>
+      <div class="partido-bars">
+        <div class="pb-row"><div class="pb-bg"><div class="pb-fill" style="width:${pct26}%;background:var(--s2026)"></div></div><span class="pb-val t2026">${r26.toFixed(2)} t/ha</span></div>
+        <div class="pb-row"><div class="pb-bg"><div class="pb-fill" style="width:${pct25}%;background:var(--s2025)"></div></div><span class="pb-val t2025">${r25.toFixed(2)} t/ha</span></div>
+      </div></div>`;
+  });
+}
+
+// ── MAP ─────────────────────────────────────────────────────────────────────
+function initMap(){
+  leafletMap=L.map('map',{zoomControl:true});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18}).addTo(leafletMap);
+  layerGroup=L.layerGroup().addTo(leafletMap);
+  leafletMap.setView([-38.2,-59.5],8);
+}
+function updateMap(active){
+  if(!layerGroup) return;
+  layerGroup.clearLayers();
+  const tooltip=document.getElementById('map-tooltip');
+  active.forEach(d=>{
+    const cropColor=CROP_COLORS[d.crop]||'#64748b';
+    const seasonColor=SEASON_COLORS[d.file]||'#888';
+    const poly=L.polygon(d.p,{color:seasonColor,weight:1.5,opacity:.9,fillColor:cropColor,fillOpacity:.55});
+    poly.on('mouseover',e=>{
+      poly.setStyle({fillOpacity:.82,weight:2.5});
+      const rend=d.area>0?(d.yt/d.area).toFixed(2):'—';
+      tooltip.style.display='block';
+      tooltip.innerHTML=`<div class="tt-title" style="color:${cropColor}">${d.crop} <span style="font-size:10px;color:${seasonColor}">${d.file}</span></div>
+        <div class="tt-row"><span class="tt-key">Partido</span><span class="tt-val">${d.partido.charAt(0)+d.partido.slice(1).toLowerCase()}</span></div>
+        <div class="tt-row"><span class="tt-key">Productor</span><span class="tt-val" style="font-size:10px">${d.org}</span></div>
+        <div class="tt-row"><span class="tt-key">Área</span><span class="tt-val">${d.area} ha</span></div>
+        <div class="tt-row"><span class="tt-key">Producción</span><span class="tt-val">${d.yt} t</span></div>
+        <div class="tt-row"><span class="tt-key">Rendimiento</span><span class="tt-val" style="color:${cropColor}">${rend} t/ha</span></div>
+        <div class="tt-row"><span class="tt-key">Humedad</span><span class="tt-val">${d.mo}%</span></div>`;
+    });
+    poly.on('mousemove',e=>{tooltip.style.left=(e.originalEvent.clientX+14)+'px';tooltip.style.top=(e.originalEvent.clientY-10)+'px';});
+    poly.on('mouseout',()=>{poly.setStyle({fillOpacity:.55,weight:1.5});tooltip.style.display='none';});
+    layerGroup.addLayer(poly);
+  });
+}
+
+// ── CHARTS ──────────────────────────────────────────────────────────────────
+const chartDefaults={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(48,54,61,.4)'}},y:{ticks:{color:'#8b949e'},grid:{color:'rgba(48,54,61,.4)'}}}};
+
+function makeBarDatasets(labels,s26obj,s25obj,keyFn){
+  return [
+    {label:'2026',data:labels.map(l=>{const v=s26obj[l];return v?+(keyFn(v)).toFixed(2):0;}),backgroundColor:'rgba(88,166,255,.8)',borderRadius:3},
+    {label:'2025',data:labels.map(l=>{const v=s25obj[l];return v?+(keyFn(v)).toFixed(2):0;}),backgroundColor:'rgba(240,180,41,.8)',borderRadius:3},
+  ];
+}
+
+function renderCharts(s26,s25F,s25){
+  const partidos=ALL_PARTIDOS.filter(p=>s26.byPartido[p]||s25.byPartido[p]);
+  const crops=[...new Set([...Object.keys(s26.byCrop),...Object.keys(s25.byCrop)])].sort((a,b)=>(s26.byCrop[b]?.area||0)-(s26.byCrop[a]?.area||0));
+  const fmtP=p=>fmtPartido(p);
+  const rendFn=v=>v.area>0?v.yield/v.area:0;
+  const areaFn=v=>v.area;
+
+  if(rendPC) rendPC.destroy();
+  rendPC=new Chart(document.getElementById('rendPartidoChart'),{type:'bar',data:{labels:partidos.map(fmtP),datasets:makeBarDatasets(partidos,s26.byPartido,s25.byPartido,rendFn)},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales?.y,title:{display:true,text:'t/ha',color:'#8b949e',font:{size:10}}}}}});
+  if(areaPC) areaPC.destroy();
+  areaPC=new Chart(document.getElementById('areaPartidoChart'),{type:'bar',data:{labels:partidos.map(fmtP),datasets:makeBarDatasets(partidos,s26.byPartido,s25.byPartido,areaFn)},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales?.y,title:{display:true,text:'ha',color:'#8b949e',font:{size:10}}}}}});
+  if(rendCC) rendCC.destroy();
+  rendCC=new Chart(document.getElementById('rendCropChart'),{type:'bar',data:{labels:crops,datasets:makeBarDatasets(crops,s26.byCrop,s25.byCrop,rendFn)},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales?.y,title:{display:true,text:'t/ha',color:'#8b949e',font:{size:10}}}}}});
+  if(areaCC) areaCC.destroy();
+  areaCC=new Chart(document.getElementById('areaCropChart'),{type:'bar',data:{labels:crops,datasets:makeBarDatasets(crops,s26.byCrop,s25.byCrop,areaFn)},options:{...chartDefaults,scales:{...chartDefaults.scales,y:{...chartDefaults.scales?.y,title:{display:true,text:'ha',color:'#8b949e',font:{size:10}}}}}});
+
+  const orgs26=new Set(Object.keys(s26.byOrg)), orgs25=new Set(Object.keys(s25.byOrg));
+  const commonOrgs=[...orgs26].filter(o=>orgs25.has(o)).sort((a,b)=>(s26.byOrg[b]?.area||0)-(s26.byOrg[a]?.area||0)).slice(0,12);
+  const shortOrgs=commonOrgs.map(o=>o.length>14?o.slice(0,14)+'…':o);
+
+  if(orgRC) orgRC.destroy();
+  orgRC=new Chart(document.getElementById('orgRendChart'),{
+    type:'bar',
+    data:{labels:shortOrgs,datasets:makeBarDatasets(commonOrgs,s26.byOrg,s25.byOrg,rendFn)},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b949e',font:{size:10},boxWidth:10}}},scales:{x:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(48,54,61,.4)'}},y:{ticks:{color:'#8b949e'},grid:{color:'rgba(48,54,61,.4)'},title:{display:true,text:'t/ha',color:'#8b949e',font:{size:10}}}}}
+  });
+}
+
+// ── TABLE ───────────────────────────────────────────────────────────────────
+function onFirmaSearch(val){
+  firmaFilter=val.trim().toLowerCase();
+  renderTable(getActiveFields());
+}
+function clearFirmaSearch(){
+  firmaFilter='';
+  const inp=document.getElementById('firma-search');
+  if(inp) inp.value='';
+  renderTable(getActiveFields());
+}
+function renderTable(active){
+  const tbody=document.getElementById('table-body');
+  const data=firmaFilter?[...active].filter(d=>d.org.toLowerCase().includes(firmaFilter)):[...active];
+  const countEl=document.getElementById('firma-count');
+  if(countEl) countEl.textContent=firmaFilter?`${data.length} lote${data.length!==1?'s':''}${data.length===0?' — sin resultados':''}` : '';
+  const rows=data.sort((a,b)=>a.file!==b.file?a.file<b.file?-1:1:a.partido.localeCompare(b.partido)||b.area-a.area).map(d=>{
+    const color=CROP_COLORS[d.crop]||'#64748b';
+    const rend=d.area>0?(d.yt/d.area).toFixed(2):'—';
+    const sc=d.file==='2026'?'t2026':d.file==='2025F'?'t2025F':'t2025';
+    return `<tr>
+      <td><span class="td-season ${sc}">${d.file}</span></td>
+      <td class="td-partido">${fmtPartido(d.partido)}</td>
+      <td>${d.org}</td>
+      <td><span class="td-crop"><span class="td-dot" style="background:${color}"></span>${d.crop}</span></td>
+      <td class="td-right">${d.area.toFixed(1)}</td>
+      <td class="td-right">${d.yt.toFixed(1)}</td>
+      <td class="td-right td-rend">${rend}</td>
+      <td class="td-right">${d.mo.toFixed(1)}</td>
+      <td style="font-family:'Space Mono',monospace;font-size:10px;color:var(--accent)">${(()=>{let m=d.mmod||'—';if((m==='6170J'||m==='—'||m==='N/A')&&d.mvin){const dc=decodeModelFromVin(d.mvin);if(dc)m=dc;}return m;})()}</td>
+      <td style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted)">${d.mvin||'—'}</td>
+    </tr>`;
+  });
+  tbody.innerHTML=rows.join('');
+}
+
+// ── CONTROLS ────────────────────────────────────────────────────────────────
+function showPage(n){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page'+n).classList.add('active');
+  document.querySelectorAll('.tab-btn')[n-1].classList.add('active');
+  if(n===1&&leafletMap) setTimeout(()=>leafletMap.invalidateSize(),100);
+  if(n===2){
+    const filtered={};
+    SEASONS.forEach(s=>{
+      filtered[s.label]=ALL_FIELDS.filter(d=>d.file===s.label&&(cropFilter==='all'||d.crop===cropFilter)&&(partidoFilter==='all'||d.partido===partidoFilter));
+    });
+    setTimeout(()=>renderCharts(calcStats(filtered['2026']||[]),calcStats(filtered['2025F']||[]),calcStats(filtered['2025']||[])),50);
+  }
+  if(n===4) setTimeout(()=>renderMachines(),50);
+  if(n===5) setTimeout(()=>{ applyRentPreset(); updateRentabilidad(); },50);
+}
+
+// ── MACHINES PAGE ────────────────────────────────────────────────────────────
+let maqAreaChart, maqRendChart, maqHaSeasonChart;
+
+function decodeModelFromVin(vin){
+  if(!vin||vin.length<7) return null;
+  const p=vin.substring(0,4);
+  if(p==='1J0S'||p==='1CQS') return vin.substring(3,7); // e.g. S770
+  if(p==='1CQ9') return '9'+vin.substring(4,7)+' STS';  // e.g. 9770 STS
+  return null;
+}
+
+function renderMachines(){
+  // Use active season/crop/partido filters
+  const active = getActiveFields().filter(d=>d.mvin&&d.mvin!=='—'&&d.mvin!=='N/A');
+
+  // Build per-machine map keyed by VIN
+  const PREFERRED_MODELS = new Set(['S550','S660','S670','S680','S760','S770','S780','S790','9650 STS','9770 STS','9870 STS']);
+  const machineMap = {};
+  active.forEach(d=>{
+    const key = d.mvin;
+    let mod = (d.mmod&&d.mmod!=='—'&&d.mmod!=='N/A')?d.mmod:'Sin modelo';
+    // If model is wrong/missing, try to decode from VIN (JD VIN encodes model)
+    if(mod==='6170J'||mod==='Sin modelo'){
+      const decoded=decodeModelFromVin(d.mvin);
+      if(decoded) mod=decoded; else if(mod==='6170J') mod='Otras';
+    }
+    if(!machineMap[key]){
+      machineMap[key]={
+        vin:d.mvin, model:mod,
+        area:0, yt:0, moSum:0, moCount:0,
+        seasons:new Set(), crops:new Set(), orgs:new Set()
+      };
+    } else if(PREFERRED_MODELS.has(mod) && !PREFERRED_MODELS.has(machineMap[key].model)){
+      machineMap[key].model = mod;
+    }
+    const m=machineMap[key];
+    m.area+=d.area; m.yt+=d.yt;
+    if(d.mo>0){m.moSum+=d.mo*d.area; m.moCount+=d.area;}
+    m.seasons.add(d.file); m.crops.add(d.crop); m.orgs.add(d.org);
+  });
+
+  const machines=Object.values(machineMap).sort((a,b)=>b.area-a.area);
+  const totalMaq=machines.length;
+
+  // Model counts
+  const modelCount={};
+  machines.forEach(m=>{
+    modelCount[m.model]=(modelCount[m.model]||0)+1;
+  });
+  const modelsSorted=Object.entries(modelCount).sort((a,b)=>b[1]-a[1]);
+  const topModel=modelsSorted[0]?modelsSorted[0][0]:'—';
+  const topModelCount=modelsSorted[0]?modelsSorted[0][1]:0;
+  const totalHa=machines.reduce((s,m)=>s+m.area,0);
+  const haPromedio=totalMaq>0?(totalHa/totalMaq).toFixed(0):0;
+
+  // KPIs
+  document.getElementById('maq-total').textContent=totalMaq||'—';
+  document.getElementById('maq-modelos-count').textContent=modelsSorted.length||'—';
+  document.getElementById('maq-ha-prom').textContent=haPromedio?`${Number(haPromedio).toLocaleString('es-AR')} ha`:'—';
+  document.getElementById('maq-top-model').textContent=topModel;
+  document.getElementById('maq-top-model-sub').textContent=topModel!=='—'?`${topModelCount} unidad${topModelCount!==1?'es':''}`:'' ;
+
+  // Model pills
+  const pillsEl=document.getElementById('maq-model-pills');
+  pillsEl.innerHTML=modelsSorted.map(([mod,cnt])=>`<span class="maq-model-pill">${mod} ×${cnt}</span>`).join('');
+
+  // Chart 1: Area by model
+  const modelAreaMap={};
+  machines.forEach(m=>{
+    modelAreaMap[m.model]=(modelAreaMap[m.model]||0)+m.area;
+  });
+  const modelLabels=Object.keys(modelAreaMap).sort((a,b)=>modelAreaMap[b]-modelAreaMap[a]);
+  const modelAreaVals=modelLabels.map(m=>Math.round(modelAreaMap[m]));
+
+  if(maqAreaChart) maqAreaChart.destroy();
+  maqAreaChart=new Chart(document.getElementById('maqAreaModelChart'),{
+    type:'bar',
+    data:{labels:modelLabels,datasets:[{label:'Área (ha)',data:modelAreaVals,backgroundColor:'rgba(88,166,255,.7)',borderColor:'#58a6ff',borderWidth:1,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'rgba(48,54,61,.4)'}},y:{ticks:{color:'#8b949e'},grid:{color:'rgba(48,54,61,.4)'},title:{display:true,text:'ha',color:'#8b949e',font:{size:10}}}}}
+  });
+
+  // Chart 2: Avg yield by model
+  const modelRendMap={};
+  const modelAreaForRend={};
+  active.forEach(d=>{
+    if(!d.mmod||d.mmod==='—') return;
+    modelRendMap[d.mmod]=(modelRendMap[d.mmod]||0)+d.yt;
+    modelAreaForRend[d.mmod]=(modelAreaForRend[d.mmod]||0)+d.area;
+  });
+  const rendLabels=modelLabels;
+  const rendVals=rendLabels.map(m=>modelAreaForRend[m]>0?+(modelRendMap[m]/modelAreaForRend[m]).toFixed(2):0);
+
+  if(maqRendChart) maqRendChart.destroy();
+  maqRendChart=new Chart(document.getElementById('maqRendModelChart'),{
+    type:'bar',
+    data:{labels:rendLabels,datasets:[{label:'Rend (t/ha)',data:rendVals,backgroundColor:'rgba(240,180,41,.7)',borderColor:'#f0b429',borderWidth:1,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'rgba(48,54,61,.4)'}},y:{ticks:{color:'#8b949e'},grid:{color:'rgba(48,54,61,.4)'},title:{display:true,text:'t/ha',color:'#8b949e',font:{size:10}}}}}
+  });
+
+  // Chart 3: Ha per machine per season (top 12 by area)
+  const top12=machines.slice(0,12);
+  const machineLabels=top12.map(m=>m.model+(m.vin!=='—'?` (${m.vin.slice(-4)})`:''));
+  const seasonColors={'2026':'rgba(88,166,255,.75)','2025F':'rgba(167,139,250,.75)','2025':'rgba(240,180,41,.75)'};
+  const seasonDatasets=SEASONS.map(s=>{
+    const vals=top12.map(m=>{
+      const rows=active.filter(d=>d.mvin===m.vin&&d.file===s.label);
+      return Math.round(rows.reduce((sum,r)=>sum+r.area,0));
+    });
+    return{label:s.label,data:vals,backgroundColor:seasonColors[s.label]||'#64748b',borderRadius:3,borderSkipped:false};
+  });
+
+  if(maqHaSeasonChart) maqHaSeasonChart.destroy();
+  maqHaSeasonChart=new Chart(document.getElementById('maqHaSeasonChart'),{
+    type:'bar',
+    data:{labels:machineLabels,datasets:seasonDatasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b949e',font:{size:10},boxWidth:10}}},scales:{x:{stacked:true,ticks:{color:'#8b949e',font:{size:9}},grid:{color:'rgba(48,54,61,.4)'}},y:{stacked:true,ticks:{color:'#8b949e'},grid:{color:'rgba(48,54,61,.4)'},title:{display:true,text:'ha',color:'#8b949e',font:{size:10}}}}}
+  });
+
+  // Table
+  const tbody=document.getElementById('maq-table-body');
+  tbody.innerHTML=machines.map(m=>{
+    const rend=m.area>0?(m.yt/m.area).toFixed(2):'—';
+    const mo=m.moCount>0?(m.moSum/m.moCount).toFixed(1):'—';
+    const seasonChips=[...m.seasons].map(s=>`<span class="maq-season-chip t${s.replace(' ','')}">${s}</span>`).join('');
+    const crops=[...m.crops].filter(c=>c&&c!=='—').join(', ')||'—';
+    const orgsCount=m.orgs.size;
+    return `<tr>
+      <td class="maq-tag-model">${m.model}</td>
+      <td class="maq-tag-vin">${m.vin}</td>
+      <td><div class="maq-season-chips">${seasonChips}</div></td>
+      <td style="text-align:right">${m.area.toFixed(1)}</td>
+      <td style="text-align:right">${m.yt.toFixed(1)}</td>
+      <td style="text-align:right;color:var(--accent);font-weight:700">${rend}</td>
+      <td style="text-align:right">${mo}</td>
+      <td style="font-size:9px;color:var(--muted)">${crops}</td>
+      <td style="text-align:right">${orgsCount}</td>
+    </tr>`;
+  }).join('');
+}
+// ── RENTABILIDAD PAGE ────────────────────────────────────────────────────────
+let rentBarChartInst, rentDistChartInst;
+let rentView = 'org'; // 'org' | 'lote'
+
+function setRentView(v){
+  rentView = v;
+  document.getElementById('rent-view-org').classList.toggle('active',  v==='org');
+  document.getElementById('rent-view-lote').classList.toggle('active', v==='lote');
+  renderRentabilidad();
+}
+
+function toggleRentOrg(idx){
+  const row   = document.querySelectorAll('.rent-org-row')[idx];
+  const lotes = document.querySelectorAll(`.rent-lote-row[data-org="${idx}"]`);
+  const open  = row.classList.toggle('open');
+  lotes.forEach(l => l.classList.toggle('visible', open));
+}
+
+function getRentParams(){
+  const costo  = parseFloat(document.getElementById('ri-costo').value)  || 650;
+  const precio = parseFloat(document.getElementById('ri-precio').value) || 320;
+  const desc   = parseFloat(document.getElementById('ri-desc').value)   || 40;
+  const neto   = precio - desc;
+  const umbral = neto > 0 ? costo / neto : 0;
+  return {costo, precio, desc, neto, umbral};
+}
+
+function updateRentabilidad(){
+  const {neto, umbral} = getRentParams();
+  document.getElementById('ri-neto').innerHTML   = neto.toFixed(0) + ' <span style="font-size:12px;color:var(--muted);">USD/tn</span>';
+  document.getElementById('ri-umbral').innerHTML = umbral.toFixed(2) + ' <span style="font-size:12px;color:var(--muted);">t/ha</span>';
+  renderRentabilidad();
+}
+
+function renderRentabilidad(){
+  const activeCrop = cropFilter === 'all' ? null : cropFilter;
+  const rentLabel  = document.getElementById('rent-crop-label');
+
+  if(!activeCrop){
+    rentLabel.textContent = '—';
+    rentLabel.style.color = 'var(--muted)';
+    ['rentBarChart','rentDistChart'].forEach(id => {
+      const ctx = document.getElementById(id).getContext('2d');
+      if(id==='rentBarChart'&&rentBarChartInst){rentBarChartInst.destroy();rentBarChartInst=null;}
+      if(id==='rentDistChart'&&rentDistChartInst){rentDistChartInst.destroy();rentDistChartInst=null;}
+    });
+    document.getElementById('rent-table-body').innerHTML =
+      '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px 0;">Seleccioná un cultivo en el filtro superior para ver el análisis de rentabilidad.</td></tr>';
+    ['rkpi-umbral','rkpi-over','rkpi-under','rkpi-result'].forEach(id => document.getElementById(id).textContent = '—');
+    document.getElementById('rkpi-umbral-label').textContent = 'Umbral';
+    return;
+  }
+
+  rentLabel.textContent = activeCrop;
+  rentLabel.style.color = CROP_COLORS[activeCrop] || 'var(--accent)';
+  document.getElementById('rkpi-umbral-label').textContent = 'Umbral (' + activeCrop + ')';
+
+  // Season tags
+  const seasonDefs = [
+    {key:'2026',  label:'2026',       cls:'t2026',  title:'Campaña actual'},
+    {key:'2025F', label:'2025 Final', cls:'t2025F', title:'Campaña anterior — datos cerrados'},
+    {key:'2025',  label:'2025 equiv', cls:'t2025',  title:'Mismo período del año anterior'},
+  ];
+  document.getElementById('rent-season-tags').innerHTML = seasonDefs.map(s =>
+    seasonVis[s.key]
+      ? `<span class="kpi-season-tag ${s.cls}" title="${s.title}" style="font-size:9px;cursor:default;">${s.label}</span>`
+      : `<span style="font-size:9px;font-family:'Space Mono',monospace;padding:2px 6px;border-radius:8px;background:rgba(139,148,158,.08);color:rgba(139,148,158,.35);text-decoration:line-through;cursor:default;" title="Desactivada">${s.label}</span>`
+  ).join('');
+
+  const {costo, neto, umbral} = getRentParams();
+  const sojaFields = getActiveFields().filter(d => d.crop === activeCrop && d.area > 0);
+
+  // KPI: umbral
+  document.getElementById('rkpi-umbral').textContent = umbral.toFixed(2) + ' t/ha';
+
+  const overFields  = sojaFields.filter(d => (d.yt / d.area) >= umbral);
+  const underFields = sojaFields.filter(d => (d.yt / d.area) <  umbral);
+  const overHa  = overFields.reduce((s,d)  => s + d.area, 0);
+  const underHa = underFields.reduce((s,d) => s + d.area, 0);
+
+  document.getElementById('rkpi-over').textContent   = overHa.toFixed(0) + ' ha';
+  document.getElementById('rkpi-over-sub').textContent  = overFields.length + ' campos · ' + overHa.toFixed(0) + ' ha sobre umbral';
+  document.getElementById('rkpi-under').textContent  = underHa.toFixed(0) + ' ha';
+  document.getElementById('rkpi-under-sub').textContent = underFields.length + ' campos · ' + underHa.toFixed(0) + ' ha bajo umbral';
+
+  const totalArea   = sojaFields.reduce((s,d) => s + d.area, 0);
+  const totalResult = sojaFields.reduce((s,d) => s + (d.yt * neto - d.area * costo), 0);
+  const resultPerHa = totalArea > 0 ? totalResult / totalArea : 0;
+  const signHa  = resultPerHa  >= 0 ? '+' : '';
+  const signTot = totalResult  >= 0 ? '+' : '';
+  const rkpiResult = document.getElementById('rkpi-result');
+  rkpiResult.textContent = signHa + Math.round(resultPerHa).toLocaleString('es-AR') + ' USD/ha';
+  rkpiResult.style.color = resultPerHa >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('rkpi-result-sub').textContent =
+    'Total: ' + signTot + Math.round(totalResult).toLocaleString('es-AR') + ' USD · ' + totalArea.toFixed(0) + ' ha analizadas';
+
+  // ── Preparar datos según vista ───────────────────────────────────────────
+  let barItems; // [{label, rend, area, result, extraLines}]
+
+  if(rentView === 'org'){
+    document.getElementById('rent-bar-title').textContent = 'Rendimiento por Productor vs. Umbral';
+    const orgMap = {};
+    sojaFields.forEach(d => {
+      if(!orgMap[d.org]) orgMap[d.org] = {yt:0, area:0, result:0, lotes:0};
+      orgMap[d.org].yt     += d.yt;
+      orgMap[d.org].area   += d.area;
+      orgMap[d.org].result += d.yt * neto - d.area * costo;
+      orgMap[d.org].lotes  += 1;
+    });
+    barItems = Object.entries(orgMap)
+      .map(([org, v]) => ({
+        label:  org,
+        rend:   v.area > 0 ? v.yt / v.area : 0,
+        area:   v.area,
+        result: v.result,
+        lotes:  v.lotes,
+        extraLines: [
+          'Lotes: ' + v.lotes,
+          'Área: ' + v.area.toFixed(0) + ' ha',
+          'Resultado: ' + (v.result>=0?'+':'') + Math.round(v.result).toLocaleString('es-AR') + ' USD'
+        ]
+      }))
+      .sort((a,b) => b.rend - a.rend);
+  } else {
+    document.getElementById('rent-bar-title').textContent = 'Rendimiento por Lote vs. Umbral';
+    barItems = [...sojaFields]
+      .sort((a,b) => (b.yt/b.area) - (a.yt/a.area))
+      .map(d => ({
+        label:  d.org.split(' ')[0] + ' ' + d.file,
+        rend:   d.yt / d.area,
+        area:   d.area,
+        result: d.yt * neto - d.area * costo,
+        extraLines: [
+          'Área: ' + d.area.toFixed(1) + ' ha',
+          'Resultado: ' + (d.yt*neto-d.area*costo>=0?'+':'') + Math.round(d.yt*neto-d.area*costo).toLocaleString('es-AR') + ' USD'
+        ]
+      }));
+  }
+
+  const barColors = barItems.map(it => it.rend >= umbral ? 'rgba(63,185,80,.75)' : 'rgba(248,81,73,.7)');
+
+  if(rentBarChartInst) rentBarChartInst.destroy();
+  rentBarChartInst = new Chart(document.getElementById('rentBarChart').getContext('2d'), {
+    data: {
+      labels: barItems.map(it => it.label),
+      datasets: [
+        {
+          type: 'bar', label: 'Rend. (t/ha)',
+          data: barItems.map(it => +it.rend.toFixed(2)),
+          backgroundColor: barColors, borderRadius: 2, order: 2
+        },
+        {
+          type: 'line', label: 'Umbral',
+          data: barItems.map(() => +umbral.toFixed(2)),
+          borderColor: 'rgba(240,180,41,.9)', borderWidth: 2,
+          borderDash: [5,4], pointRadius: 0, fill: false, order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {labels:{color:'#8b949e',font:{size:10}}, position:'top'},
+        tooltip: {
+          callbacks: {
+            afterBody: (items) => {
+              const it = barItems[items[0]?.dataIndex];
+              return it ? it.extraLines : [];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {ticks:{color:'#8b949e',font:{size:8},maxRotation:55}, grid:{color:'rgba(48,54,61,.4)'}},
+        y: {ticks:{color:'#8b949e',font:{size:9}}, grid:{color:'rgba(48,54,61,.4)'}, min:0,
+            title:{display:true, text:'t/ha', color:'#8b949e', font:{size:9}}}
+      }
+    }
+  });
+
+  // Distribution histogram (0.25 t/ha bins)
+  const BIN = 0.25;
+  const binsMap = {};
+  sojaFields.forEach(d => {
+    const r   = d.yt / d.area;
+    const key = (Math.floor(r / BIN) * BIN).toFixed(2);
+    if(!binsMap[key]) binsMap[key] = 0;
+    binsMap[key] += d.area;
+  });
+  const binKeys   = Object.keys(binsMap).sort((a,b) => +a - +b);
+  const binColors = binKeys.map(k => {
+    const lo = +k, hi = lo + BIN;
+    if(lo >= umbral)  return 'rgba(63,185,80,.75)';
+    if(hi <= umbral)  return 'rgba(248,81,73,.7)';
+    return 'rgba(240,180,41,.75)'; // straddles threshold
+  });
+
+  if(rentDistChartInst) rentDistChartInst.destroy();
+  rentDistChartInst = new Chart(document.getElementById('rentDistChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: binKeys.map(k => k + '–' + (+k + BIN).toFixed(2)),
+      datasets: [{
+        label: 'Área (ha)',
+        data:   binKeys.map(k => +binsMap[k].toFixed(1)),
+        backgroundColor: binColors,
+        borderRadius: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {legend:{display:false}},
+      scales: {
+        x: {title:{display:true,text:'Rendimiento (t/ha)',color:'#8b949e',font:{size:9}},
+            ticks:{color:'#8b949e',font:{size:8}}, grid:{color:'rgba(48,54,61,.4)'}},
+        y: {title:{display:true,text:'Área (ha)',color:'#8b949e',font:{size:9}},
+            ticks:{color:'#8b949e',font:{size:9}}, grid:{color:'rgba(48,54,61,.4)'}, min:0}
+      }
+    }
+  });
+
+  // ── Tabla acordeón: productor → lotes ──────────────────────────────────
+  const sign = n => n >= 0 ? '+' : '';
+  const tbody = document.getElementById('rent-table-body');
+  document.getElementById('rent-table-title').textContent = 'Rentabilidad por Productor — click para ver lotes';
+  document.getElementById('rent-table-head').innerHTML = `<tr>
+    <th style="width:30%">Productor</th>
+    <th>Partido</th>
+    <th style="text-align:right">Área total</th>
+    <th style="text-align:right">Rend. prom.</th>
+    <th style="text-align:right">vs. Umbral</th>
+    <th style="text-align:right">Resultado total (USD)</th>
+    <th>Estado</th>
+  </tr>`;
+
+  if(!sojaFields.length){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;">Sin datos para los filtros activos</td></tr>';
+    return;
+  }
+
+  // Agrupar por productor, mantener lotes individuales
+  const orgMap = {};
+  sojaFields.forEach(d => {
+    if(!orgMap[d.org]) orgMap[d.org] = {yt:0, area:0, result:0, partidos:new Set(), lotes:[]};
+    orgMap[d.org].yt     += d.yt;
+    orgMap[d.org].area   += d.area;
+    orgMap[d.org].result += d.yt * neto - d.area * costo;
+    orgMap[d.org].partidos.add(fmtPartido(d.partido));
+    orgMap[d.org].lotes.push(d);
+  });
+
+  const orgs = Object.entries(orgMap)
+    .map(([org, v]) => ({org, ...v, rend: v.yt / v.area}))
+    .sort((a,b) => b.rend - a.rend);
+
+  let html = '';
+  orgs.forEach((v, idx) => {
+    const over  = v.rend >= umbral;
+    const delta = v.rend - umbral;
+    const partStr = [...v.partidos].join(', ');
+
+    // Fila resumen del productor
+    html += `<tr class="rent-org-row" onclick="toggleRentOrg(${idx})">
+      <td><span class="rent-org-chevron">▶</span><strong>${v.org}</strong>
+        <span style="font-size:9px;color:var(--muted);margin-left:6px;">${v.lotes.length} lote${v.lotes.length!==1?'s':''}</span></td>
+      <td style="font-size:9px;color:var(--muted);">${partStr}</td>
+      <td style="text-align:right">${v.area.toFixed(0)} ha</td>
+      <td style="text-align:right;color:${over?'var(--green)':'var(--red)'};font-weight:700">${v.rend.toFixed(2)} t/ha</td>
+      <td style="text-align:right;color:${over?'var(--green)':'var(--red)'}">${sign(delta)}${delta.toFixed(2)}</td>
+      <td style="text-align:right;color:${v.result>=0?'var(--green)':'var(--red)'};font-weight:700">${sign(v.result)}${Math.round(v.result).toLocaleString('es-AR')}</td>
+      <td><span class="${over?'rent-badge-over':'rent-badge-under'}">${over?'SOBRE UMBRAL':'BAJO UMBRAL'}</span></td>
+    </tr>`;
+
+    // Filas de lotes (ocultas inicialmente)
+    const lotesOrdenados = [...v.lotes].sort((a,b) => (b.yt/b.area)-(a.yt/a.area));
+    lotesOrdenados.forEach(d => {
+      const lr   = d.yt / d.area;
+      const ld   = lr - umbral;
+      const lres = d.yt * neto - d.area * costo;
+      const lover= lr >= umbral;
+      const sc   = d.file==='2026'?'t2026':d.file==='2025F'?'t2025F':'t2025';
+      html += `<tr class="rent-lote-row" data-org="${idx}">
+        <td><span style="color:var(--muted);margin-right:6px;">└</span><span class="td-season ${sc}">${d.file}</span>
+          <span style="margin-left:6px;color:var(--muted);font-size:9px;">${fmtPartido(d.partido)}</span></td>
+        <td style="color:var(--muted);font-size:9px;">lote individual</td>
+        <td style="text-align:right">${d.area.toFixed(1)} ha</td>
+        <td style="text-align:right;color:${lover?'var(--green)':'var(--red)'};font-weight:700">${lr.toFixed(2)} t/ha</td>
+        <td style="text-align:right;color:${lover?'var(--green)':'var(--red)'}">${sign(ld)}${ld.toFixed(2)}</td>
+        <td style="text-align:right;color:${lres>=0?'var(--green)':'var(--red)'};font-weight:700">${sign(lres)}${Math.round(lres).toLocaleString('es-AR')}</td>
+        <td><span class="${lover?'rent-badge-over':'rent-badge-under'}">${lover?'SOBRE':'BAJO'}</span></td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html;
+}
+
+function setFilter(crop){
+  cropFilter=crop;
+  document.querySelectorAll('.filter-chip[data-filter]').forEach(c=>c.classList.toggle('active',c.dataset.filter===crop));
+  applyRentPreset();
+  renderAll();
+}
+function setPartido(p){
+  partidoFilter=p;
+  document.querySelectorAll('.filter-chip[data-partido]').forEach(c=>c.classList.toggle('active',c.dataset.partido===p));
+  applyRentPreset();
+  renderAll();
+}
+function toggleSeason(s){
+  seasonVis[s]=!seasonVis[s];
+  document.getElementById('sbtn-'+s).classList.toggle('active-'+s,seasonVis[s]);
+  renderAll();
+}
+
+async function exportHTML() {
+  const btn = document.querySelector('[onclick="exportHTML()"]');
+  btn.textContent = '⏳ Generando...';
+  btn.disabled = true;
+
+  try {
+    // Fetch the current HTML template
+    const res = await fetch('index.html?v=' + Date.now());
+    let html = await res.text();
+
+    // Serialize already-parsed data (no need to re-fetch GeoJSONs)
+    const dataScript = `\n<script>\nconst _INLINE_FIELDS = ${JSON.stringify(ALL_FIELDS)};\n<\/script>`;
+
+    // Inject data before closing head
+    html = html.replace('</head>', dataScript + '\n</head>');
+
+    // Replace loadData function with inline version
+    const newLoadData = `async function loadData() {
+  const bar = document.getElementById('loading-bar');
+  const txt = document.getElementById('loading-text');
+  bar.style.width = '100%';
+  txt.textContent = 'Iniciando dashboard...';
+  await new Promise(r => setTimeout(r, 200));
+  return _INLINE_FIELDS;
+}`;
+
+    html = html.replace(/async function loadData\(\) \{[\s\S]*?\n\}/, newLoadData);
+
+    const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const fecha = new Date().toISOString().slice(0,10);
+    a.download = `dashboard_ceres_mdr_${fecha}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('Error al exportar: ' + e.message);
+  }
+
+  btn.textContent = '⬇️ Exportar HTML';
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>
